@@ -8,6 +8,17 @@ authors = [{name = "Michał Górny", email = "mgorny@gentoo.org"}]
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
+dependencies = [
+    "tomli >= 1.2.3",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[project.scripts]
+gpep517 = "gpep517.__main__:main"
 
 [project.urls]
 Home = "https://github.com/mgorny/gpep517/"
