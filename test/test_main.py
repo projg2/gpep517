@@ -103,10 +103,11 @@ def all_files(top_path):
 def test_install_wheel(tmp_path, prefix):
     assert 0 == main(["", "install-wheel",
                       "--destdir", str(tmp_path),
+                      "--interpreter", "/usr/bin/pythontest",
                       "test/test-pkg/dist/test-1-py3-none-any.whl"] +
                      (["--prefix", prefix] if prefix != "/usr" else []))
 
-    expected_shebang = f"#!{sys.executable}"
+    expected_shebang = "#!/usr/bin/pythontest"
     python_ver_s = f"{sys.version_info.major}.{sys.version_info.minor}"
     python_dir = f"python{python_ver_s}"
     prefix = prefix.lstrip("/")

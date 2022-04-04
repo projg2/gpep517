@@ -65,7 +65,7 @@ def install_wheel(args):
     with WheelFile.open(args.wheel) as source:
         dest = SchemeDictionaryDestination(
             install_scheme_dict(args.prefix or "/usr", source.distribution),
-            sys.executable,
+            args.interpreter,
             get_launcher_kind(),
             bytecode_optimization_levels=[],
             destdir=args.destdir,
