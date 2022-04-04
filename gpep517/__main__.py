@@ -24,8 +24,15 @@ def get_backend(args):
 
 
 def build_wheel(args):
-    package, _, obj = args.backend.partition(":")
+    build_sys = get_toml(args.pyproject_toml).get("build-system", {})
+    backend_s = args.backend or build_sys["build-backend"]
+    package, _, obj = backend_s.partition(":")
+
+    path_len = len(sys.path)
+    sys.path[:0] = build_sys.get("backend-path", [])
     backend = importlib.import_module(package)
+    sys.path[:len(sys.path)-path_len] = []
+
     if obj:
         for name in obj.split("."):
             backend = getattr(backend, name)
@@ -56,12 +63,15 @@ def main(argv=sys.argv):
     parser = subp.add_parser("build-wheel",
                              help="Build wheel using specified backend")
     parser.add_argument("--backend",
-                        help="Backend to use",
-                        required=True)
+                        help="Backend to use (defaults to reading "
+                             "from pyproject.toml")
     parser.add_argument("--output-fd",
                         help="FD to output the wheel name to",
                         required=True,
                         type=int)
+    parser.add_argument("--pyproject-toml",
+                        default="pyproject.toml",
+                        help="Path to pyproject.toml file")
     parser.add_argument("--wheel-dir",
                         help="Directory to output the wheel into",
                         required=True)

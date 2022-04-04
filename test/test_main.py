@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from gpep517.__main__ import main
@@ -25,6 +27,13 @@ NO_BUILD_SYSTEM_TOML = """
 irrelevant = "yes"
 """
 
+TEST_BACKEND_TOML = """
+[build-system]
+requires = []
+build-backend = "backend"
+backend-path = ["test/sub-path"]
+"""
+
 
 @pytest.mark.parametrize(
     ["toml", "expected"],
@@ -32,6 +41,7 @@ irrelevant = "yes"
      ("SETUPTOOLS_TOML", "setuptools.build_meta"),
      ("NO_BUILD_BACKEND_TOML", ""),
      ("NO_BUILD_SYSTEM_TOML", ""),
+     ("TEST_BACKEND_TOML", "backend"),
      (None, ""),
      ])
 def test_get_backend(tmp_path, capfd, toml, expected):
@@ -52,8 +62,23 @@ def test_get_backend(tmp_path, capfd, toml, expected):
      ("test.backend:top_class.sub_class", "frobnicate-3-py3-none-any.whl"),
      ])
 def test_build_wheel(capfd, backend, expected):
+    orig_path = list(sys.path)
     assert 0 == main(["", "build-wheel",
                       "--backend", backend,
                       "--output-fd", "1",
                       "--wheel-dir", "."])
     assert f"{expected}\n" == capfd.readouterr().out
+    assert orig_path == sys.path
+
+
+def test_build_wheel_backend_path(tmp_path, capfd):
+    with open(tmp_path / "pyproject.toml", "w") as f:
+        f.write(TEST_BACKEND_TOML)
+
+    orig_path = list(sys.path)
+    assert 0 == main(["", "build-wheel",
+                      "--output-fd", "1",
+                      "--pyproject-toml", str(tmp_path / "pyproject.toml"),
+                      "--wheel-dir", "."])
+    assert "frobnicate-4-py3-none-any.whl\n" == capfd.readouterr().out
+    assert orig_path == sys.path
