@@ -84,8 +84,8 @@ def main(argv=sys.argv):
     parser = subp.add_parser("get-backend",
                              help="Print build-backend from pyproject.toml")
     parser.add_argument("--output-fd",
-                        help="FD to use for output",
-                        required=True,
+                        default=1,
+                        help="FD to use for output (default: 1)",
                         type=int)
     parser.add_argument("--pyproject-toml",
                         default="pyproject.toml",

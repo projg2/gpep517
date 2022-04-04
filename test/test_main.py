@@ -53,8 +53,7 @@ def test_get_backend(tmp_path, capfd, toml, expected):
             f.write(globals()[toml])
 
     assert 0 == main(["", "get-backend",
-                      "--pyproject-toml", str(tmp_path / "pyproject.toml"),
-                      "--output-fd", "1"])
+                      "--pyproject-toml", str(tmp_path / "pyproject.toml")])
     assert f"{expected}\n" == capfd.readouterr().out
 
 
