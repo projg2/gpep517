@@ -28,11 +28,11 @@ irrelevant = "yes"
 
 @pytest.mark.parametrize(
     ["toml", "expected"],
-    [["FLIT_TOML", "flit_core.buildapi"],
-     ["SETUPTOOLS_TOML", "setuptools.build_meta"],
-     ["NO_BUILD_BACKEND_TOML", ""],
-     ["NO_BUILD_SYSTEM_TOML", ""],
-     [None, ""],
+    [("FLIT_TOML", "flit_core.buildapi"),
+     ("SETUPTOOLS_TOML", "setuptools.build_meta"),
+     ("NO_BUILD_BACKEND_TOML", ""),
+     ("NO_BUILD_SYSTEM_TOML", ""),
+     (None, ""),
      ])
 def test_get_backend(tmp_path, capfd, toml, expected):
     if toml is not None:
