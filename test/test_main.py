@@ -108,19 +108,19 @@ def test_install_wheel(tmp_path, prefix):
                      (["--prefix", prefix] if prefix != "/usr" else []))
 
     expected_shebang = "#!/usr/bin/pythontest"
-    python_ver_s = f"{sys.version_info.major}.{sys.version_info.minor}"
-    python_dir = f"python{python_ver_s}"
     prefix = prefix.lstrip("/")
+    incdir = sysconfig.get_path("include", vars={"installed_base": ""})
+    sitedir = sysconfig.get_path("purelib", vars={"base": ""})
 
     assert {
         f"{prefix}/bin/newscript": (True, expected_shebang),
         f"{prefix}/bin/oldscript": (True, expected_shebang),
-        f"{prefix}/include/{python_dir}{sys.abiflags}/test/test.h":
+        f"{prefix}{incdir}/test/test.h":
         (False, "#define TEST_HEADER 1"),
-        f"{prefix}/lib/{python_dir}/site-packages/test-1.dist-info": None,
-        f"{prefix}/lib/{python_dir}/site-packages/testpkg/__init__.py":
+        f"{prefix}{sitedir}/test-1.dist-info": None,
+        f"{prefix}{sitedir}/testpkg/__init__.py":
         (False, '"""A test package"""'),
-        f"{prefix}/lib/{python_dir}/site-packages/testpkg/datafile.txt":
+        f"{prefix}{sitedir}/testpkg/datafile.txt":
         (False, "data"),
         f"{prefix}/share/test/datafile.txt": (False, "data"),
     } == dict(all_files(tmp_path))
