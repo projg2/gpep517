@@ -34,7 +34,7 @@ irrelevant = "yes"
      ["NO_BUILD_SYSTEM_TOML", ""],
      [None, ""],
      ])
-def test_get_backend_flit_core(tmp_path, capfd, toml, expected):
+def test_get_backend(tmp_path, capfd, toml, expected):
     if toml is not None:
         with open(tmp_path / "pyproject.toml", "w") as f:
             f.write(globals()[toml])
