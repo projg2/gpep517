@@ -1,4 +1,5 @@
 import argparse
+import importlib
 import os
 import sys
 
@@ -22,6 +23,20 @@ def get_backend(args):
     return 0
 
 
+def build_wheel(args):
+    package, _, obj = args.backend.partition(":")
+    backend = importlib.import_module(package)
+    if obj:
+        for name in obj.split("."):
+            backend = getattr(backend, name)
+
+    wheel_name = backend.build_wheel(args.wheel_dir)
+
+    with os.fdopen(args.output_fd, "w") as out:
+        print(wheel_name, file=out)
+    return 0
+
+
 def main(argv=sys.argv):
     argp = argparse.ArgumentParser(prog=argv[0])
 
@@ -37,6 +52,19 @@ def main(argv=sys.argv):
     parser.add_argument("--pyproject-toml",
                         default="pyproject.toml",
                         help="Path to pyproject.toml file")
+
+    parser = subp.add_parser("build-wheel",
+                             help="Build wheel using specified backend")
+    parser.add_argument("--backend",
+                        help="Backend to use",
+                        required=True)
+    parser.add_argument("--output-fd",
+                        help="FD to output the wheel name to",
+                        required=True,
+                        type=int)
+    parser.add_argument("--wheel-dir",
+                        help="Directory to output the wheel into",
+                        required=True)
 
     args = argp.parse_args(argv[1:])
 

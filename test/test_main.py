@@ -43,3 +43,17 @@ def test_get_backend(tmp_path, capfd, toml, expected):
                       "--pyproject-toml", str(tmp_path / "pyproject.toml"),
                       "--output-fd", "1"])
     assert f"{expected}\n" == capfd.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ["backend", "expected"],
+    [("test.backend", "frobnicate-1-py3-none-any.whl"),
+     ("test.backend:top_class", "frobnicate-2-py3-none-any.whl"),
+     ("test.backend:top_class.sub_class", "frobnicate-3-py3-none-any.whl"),
+     ])
+def test_build_wheel(capfd, backend, expected):
+    assert 0 == main(["", "build-wheel",
+                      "--backend", backend,
+                      "--output-fd", "1",
+                      "--wheel-dir", "."])
+    assert f"{expected}\n" == capfd.readouterr().out
