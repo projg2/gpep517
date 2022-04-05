@@ -6,6 +6,7 @@ build-backend = "flit_core.buildapi"
 name = "gpep517"
 authors = [{name = "Michał Górny", email = "mgorny@gentoo.org"}]
 license = {file = "LICENSE"}
+readme = "README.rst"
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
 requires-python = ">=3.8"
