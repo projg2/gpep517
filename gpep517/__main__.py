@@ -47,7 +47,7 @@ def build_wheel(args):
 
 def install_scheme_dict(prefix, dist_name):
     ret = sysconfig.get_paths(vars={"base": prefix,
-                                     "platbase": prefix})
+                                    "platbase": prefix})
     # header path hack copied from installer's __main__.py
     ret["headers"] = os.path.join(
         sysconfig.get_path("include", vars={"installed_base": prefix}),
