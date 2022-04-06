@@ -24,7 +24,7 @@ Dependencies
 gpep517 aims to minimize the dependency footprint to ease boostrap.
 At the moment, it depends on two packages:
 
-1. tomli_ for TOML parsing (intended to be replaced by stdlib in py3.11)
+1. tomli_ for TOML parsing in Python < 3.11
 
 2. installer_ for wheel installation
 
