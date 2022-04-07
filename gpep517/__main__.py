@@ -35,13 +35,13 @@ def build_wheel(args):
     path_len = len(sys.path)
     sys.path[:0] = build_sys.get("backend-path", [])
     backend = importlib.import_module(package)
-    sys.path[:len(sys.path)-path_len] = []
 
     if obj:
         for name in obj.split("."):
             backend = getattr(backend, name)
 
     wheel_name = backend.build_wheel(args.wheel_dir)
+    sys.path[:len(sys.path)-path_len] = []
 
     with os.fdopen(args.output_fd, "w") as out:
         print(wheel_name, file=out)
