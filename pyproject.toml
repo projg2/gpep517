@@ -25,3 +25,13 @@ gpep517 = "gpep517.__main__:main"
 
 [project.urls]
 Home = "https://github.com/mgorny/gpep517/"
+
+[tool.flit.sdist]
+include = [
+    "test",
+    "tox.ini",
+]
+exclude = [
+    "test/__pycache__",
+    "test/sub-path/__pycache__",
+]
