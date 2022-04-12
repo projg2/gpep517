@@ -1,5 +1,6 @@
 import argparse
 import importlib
+import json
 import os
 import sys
 import sysconfig
@@ -40,7 +41,7 @@ def build_wheel(args):
         for name in obj.split("."):
             backend = getattr(backend, name)
 
-    wheel_name = backend.build_wheel(args.wheel_dir)
+    wheel_name = backend.build_wheel(args.wheel_dir, args.config_json)
     sys.path[:len(sys.path)-path_len] = []
 
     with os.fdopen(args.output_fd, "w") as out:
@@ -99,6 +100,10 @@ def main(argv=sys.argv):
     parser.add_argument("--backend",
                         help="Backend to use (defaults to reading "
                              "from pyproject.toml")
+    parser.add_argument("--config-json",
+                        help="JSON-encoded dictionary of config_settings "
+                             "to pass to the build backend",
+                        type=json.loads)
     parser.add_argument("--output-fd",
                         help="FD to output the wheel name to",
                         required=True,

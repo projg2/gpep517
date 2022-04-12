@@ -86,6 +86,22 @@ def test_build_wheel_backend_path(tmp_path, capfd):
     assert orig_path == sys.path
 
 
+@pytest.mark.parametrize(
+    ["settings", "expected"],
+    [("{}", "frobnicate-5-py3-none-any.whl"),
+     ('{"version": 6}', "frobnicate-6-py3-none-any.whl"),
+     ])
+def test_build_wheel_config_settings(tmp_path, capfd, settings, expected):
+    orig_path = list(sys.path)
+    assert 0 == main(["", "build-wheel",
+                      "--backend", "test.backend",
+                      "--config-json", settings,
+                      "--output-fd", "1",
+                      "--wheel-dir", "."])
+    assert f"{expected}\n" == capfd.readouterr().out
+    assert orig_path == sys.path
+
+
 def all_files(top_path):
     for cur_dir, sub_dirs, sub_files in os.walk(top_path):
         if cur_dir.endswith(".dist-info"):
