@@ -1,3 +1,3 @@
 """A backend script to aid installing Python packages in Gentoo."""
 
-__version__ = "2"
+__version__ = "3"
