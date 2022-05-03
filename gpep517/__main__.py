@@ -123,7 +123,7 @@ def main(argv=sys.argv):
     parser.add_argument("--allow-compressed",
                         help="Allow creating compressed zipfiles (gpep517 "
                         "will attempt to patch compression out by default)",
-                        action=argparse.BooleanOptionalAction)
+                        action="store_true")
     parser.add_argument("--output-fd",
                         help="FD to output the wheel name to",
                         required=True,
