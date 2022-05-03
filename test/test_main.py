@@ -1,6 +1,8 @@
+import contextlib
 import io
 import os
 import pathlib
+import shutil
 import sys
 import sysconfig
 import zipfile
@@ -167,23 +169,51 @@ def test_build_self(tmp_path, capfd):
                 == {x.compress_type for x in zipf.infolist()})
 
 
-def test_build_self_uncompressed(tmp_path, capfd):
+@contextlib.contextmanager
+def pushd(path):
+    orig_dir = pathlib.Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(orig_dir)
+
+
+@pytest.mark.parametrize(
+    ["buildsys", "extra_deps"],
+    [("flit_core", []),
+     ("hatchling", []),
+     ("pdm.pep517", []),
+     ("poetry.core", []),
+     ("setuptools", ["wheel"]),
+     ])
+def test_integration(tmp_path, capfd, buildsys, extra_deps):
+    pytest.importorskip(buildsys)
+    for dep in extra_deps:
+        pytest.importorskip(dep)
+
+    shutil.copytree(pathlib.Path("test/integration") / buildsys, tmp_path,
+                    dirs_exist_ok=True)
+
     orig_path = list(sys.path)
-    assert 0 == main(["", "build-wheel",
-                      "--output-fd", "1",
-                      "--wheel-dir", str(tmp_path)])
-    pkg = f"gpep517-{__version__}"
+    with pushd(tmp_path):
+        assert 0 == main(["", "build-wheel",
+                          "--output-fd", "1",
+                          "--wheel-dir", "."])
+    pkg = "testpkg-1"
     wheel_name = f"{pkg}-py3-none-any.whl"
-    assert f"{wheel_name}\n" == capfd.readouterr().out
+    assert wheel_name == capfd.readouterr().out.splitlines()[-1]
     assert orig_path == sys.path
 
     with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
-        assert all(x in zipf.namelist() for x in [
-            f"{pkg}.dist-info/METADATA",
-            f"{pkg}.dist-info/entry_points.txt",
-            "gpep517/__init__.py",
-            "gpep517/__main__.py",
-        ])
+        assert [
+            "testpkg/__init__.py",
+            "testpkg/datafile.txt",
+        ] == sorted(x for x in zipf.namelist()
+                    if not x.startswith(f"{pkg}.dist-info"))
+        assert (b"[console_scripts]\nnewscript=testpkg:entry_point" ==
+                zipf.read(f"{pkg}.dist-info/entry_points.txt")
+                .strip().replace(b" ", b""))
         assert ({zipfile.ZIP_STORED}
                 == {x.compress_type for x in zipf.infolist()})
 

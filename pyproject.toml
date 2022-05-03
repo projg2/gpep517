@@ -20,6 +20,13 @@ test = [
     "flit_core",
     "pytest",
 ]
+test-full = [
+    "hatchling",
+    "pdm-pep517",
+    "poetry-core",
+    "setuptools",
+    "wheel",
+]
 
 [project.scripts]
 gpep517 = "gpep517.__main__:main"

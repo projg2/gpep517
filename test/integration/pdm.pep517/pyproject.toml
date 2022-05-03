@@ -1,0 +1,22 @@
+[build-system]
+requires = ["pdm-pep517"]
+build-backend = "pdm.pep517.api"
+
+[project]
+name = "testpkg"
+description = "A test package"
+authors = [{name = "tester", email = "tester@example.com"}]
+license-expression = "MIT"
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version"]
+requires-python = ">=3.7"
+dependencies = []
+
+[project.urls]
+Home = "https://example.com/"
+
+[project.scripts]
+newscript = "testpkg:entry_point"
+
+[tool.pdm]
+version = {from = "testpkg/__init__.py"}
