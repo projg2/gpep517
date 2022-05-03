@@ -1,3 +1,4 @@
+import io
 import os
 import pathlib
 import sys
@@ -146,6 +147,7 @@ def test_install_wheel(tmp_path, prefix):
 def test_build_self(tmp_path, capfd):
     orig_path = list(sys.path)
     assert 0 == main(["", "build-wheel",
+                      "--allow-compressed",
                       "--output-fd", "1",
                       "--wheel-dir", str(tmp_path)])
     pkg = f"gpep517-{__version__}"
@@ -160,3 +162,34 @@ def test_build_self(tmp_path, capfd):
             "gpep517/__init__.py",
             "gpep517/__main__.py",
         ])
+        # NB: we're relying on flit_core defaulting to deflate
+        assert ({zipfile.ZIP_DEFLATED}
+                == {x.compress_type for x in zipf.infolist()})
+
+
+def test_build_self_uncompressed(tmp_path, capfd):
+    orig_path = list(sys.path)
+    assert 0 == main(["", "build-wheel",
+                      "--output-fd", "1",
+                      "--wheel-dir", str(tmp_path)])
+    pkg = f"gpep517-{__version__}"
+    wheel_name = f"{pkg}-py3-none-any.whl"
+    assert f"{wheel_name}\n" == capfd.readouterr().out
+    assert orig_path == sys.path
+
+    with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
+        assert all(x in zipf.namelist() for x in [
+            f"{pkg}.dist-info/METADATA",
+            f"{pkg}.dist-info/entry_points.txt",
+            "gpep517/__init__.py",
+            "gpep517/__main__.py",
+        ])
+        assert ({zipfile.ZIP_STORED}
+                == {x.compress_type for x in zipf.infolist()})
+
+    # verify that we've reverted our patching
+    with io.BytesIO() as f:
+        with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr("test.txt", "data")
+            assert (zipfile.ZIP_DEFLATED ==
+                    zipf.getinfo("test.txt").compress_type)

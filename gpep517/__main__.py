@@ -33,6 +33,18 @@ def build_wheel(args):
     backend_s = args.backend or build_sys["build-backend"]
     package, _, obj = backend_s.partition(":")
 
+    if not args.allow_compressed:
+        import zipfile
+        zipfile.ZipFile.compression = property(
+            lambda self: zipfile.ZIP_STORED,
+            lambda self, value: None,
+            lambda self: None)
+        orig_compress_type = zipfile.ZipInfo.compress_type
+        zipfile.ZipInfo.compress_type = property(
+            lambda self: zipfile.ZIP_STORED,
+            lambda self, value: None,
+            lambda self: None)
+
     path_len = len(sys.path)
     sys.path[:0] = build_sys.get("backend-path", [])
     backend = importlib.import_module(package)
@@ -43,6 +55,10 @@ def build_wheel(args):
 
     wheel_name = backend.build_wheel(args.wheel_dir, args.config_json)
     sys.path[:len(sys.path)-path_len] = []
+
+    if not args.allow_compressed:
+        delattr(zipfile.ZipFile, "compression")
+        setattr(zipfile.ZipInfo, "compress_type", orig_compress_type)
 
     with os.fdopen(args.output_fd, "w") as out:
         print(wheel_name, file=out)
@@ -104,6 +120,10 @@ def main(argv=sys.argv):
                         help="JSON-encoded dictionary of config_settings "
                              "to pass to the build backend",
                         type=json.loads)
+    parser.add_argument("--allow-compressed",
+                        help="Allow creating compressed zipfiles (gpep517 "
+                        "will attempt to patch compression out by default)",
+                        action=argparse.BooleanOptionalAction)
     parser.add_argument("--output-fd",
                         help="FD to output the wheel name to",
                         required=True,
