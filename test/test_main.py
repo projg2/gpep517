@@ -2,9 +2,11 @@ import os
 import pathlib
 import sys
 import sysconfig
+import zipfile
 
 import pytest
 
+from gpep517 import __version__
 from gpep517.__main__ import main
 
 
@@ -139,3 +141,22 @@ def test_install_wheel(tmp_path, prefix):
         (False, "data"),
         f"{prefix}/share/test/datafile.txt": (False, "data"),
     } == dict(all_files(tmp_path))
+
+
+def test_build_self(tmp_path, capfd):
+    orig_path = list(sys.path)
+    assert 0 == main(["", "build-wheel",
+                      "--output-fd", "1",
+                      "--wheel-dir", str(tmp_path)])
+    pkg = f"gpep517-{__version__}"
+    wheel_name = f"{pkg}-py3-none-any.whl"
+    assert f"{wheel_name}\n" == capfd.readouterr().out
+    assert orig_path == sys.path
+
+    with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
+        assert all(x in zipf.namelist() for x in [
+            f"{pkg}.dist-info/METADATA",
+            f"{pkg}.dist-info/entry_points.txt",
+            "gpep517/__init__.py",
+            "gpep517/__main__.py",
+        ])
