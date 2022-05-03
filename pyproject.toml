@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
+    "flit_core",
     "pytest",
 ]
 
