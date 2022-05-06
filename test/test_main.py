@@ -56,6 +56,17 @@ def verify_sys_path():
     assert orig_path == sys.path
 
 
+@pytest.fixture
+def verify_zipfile_cleanup():
+    """Verify that we are reverting zipfile patching correctly"""
+    yield
+    with io.BytesIO() as f:
+        with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr("test.txt", "data")
+            assert (zipfile.ZIP_DEFLATED ==
+                    zipf.getinfo("test.txt").compress_type)
+
+
 @pytest.mark.parametrize(
     ["toml", "expected"],
     [("FLIT_TOML", "flit_core.buildapi"),
@@ -170,9 +181,6 @@ def test_build_self(tmp_path, capfd, verify_sys_path):
             "gpep517/__init__.py",
             "gpep517/__main__.py",
         ])
-        # NB: we're relying on flit_core defaulting to deflate
-        assert ({zipfile.ZIP_DEFLATED}
-                == {x.compress_type for x in zipf.infolist()})
 
 
 @contextlib.contextmanager
@@ -193,7 +201,8 @@ def pushd(path):
      ("poetry.core", []),
      ("setuptools", ["wheel"]),
      ])
-def test_integration(tmp_path, capfd, buildsys, extra_deps, verify_sys_path):
+def test_integration(tmp_path, capfd, buildsys, extra_deps, verify_sys_path,
+                     verify_zipfile_cleanup):
     pytest.importorskip(buildsys)
     for dep in extra_deps:
         pytest.importorskip(dep)
@@ -221,16 +230,30 @@ def test_integration(tmp_path, capfd, buildsys, extra_deps, verify_sys_path):
         assert ({zipfile.ZIP_STORED}
                 == {x.compress_type for x in zipf.infolist()})
 
-    # verify that we've reverted our patching
-    with io.BytesIO() as f:
-        with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("test.txt", "data")
-            assert (zipfile.ZIP_DEFLATED ==
-                    zipf.getinfo("test.txt").compress_type)
+
+def test_backend_opening_zipfile_compressed(tmp_path, capfd, verify_sys_path):
+    with open(tmp_path / "pyproject.toml", "w") as f:
+        f.write(ZIP_BACKEND_TOML)
+
+    wheel_name = "frobnicate-7-py3-none-any.whl"
+    with zipfile.ZipFile(tmp_path / "test.zip", "w") as zipf:
+        zipf.writestr("test.txt", wheel_name)
+
+    assert 0 == main(["", "build-wheel",
+                      "--allow-compressed",
+                      "--output-fd", "1",
+                      "--pyproject-toml", str(tmp_path / "pyproject.toml"),
+                      "--wheel-dir", str(tmp_path)])
+    assert f"{wheel_name}\n" == capfd.readouterr().out
+
+    with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
+        assert ({zipfile.ZIP_DEFLATED}
+                == {x.compress_type for x in zipf.infolist()})
 
 
 @pytest.mark.xfail(reason="Compression override breaks reading zipfiles")
-def test_backend_opening_zipfile(tmp_path, capfd, verify_sys_path):
+def test_backend_opening_zipfile(tmp_path, capfd, verify_sys_path,
+                                 verify_zipfile_cleanup):
     """Verify that we do not break opening compressed zips"""
     with open(tmp_path / "pyproject.toml", "w") as f:
         f.write(ZIP_BACKEND_TOML)
@@ -250,10 +273,3 @@ def test_backend_opening_zipfile(tmp_path, capfd, verify_sys_path):
     with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
         assert ({zipfile.ZIP_STORED}
                 == {x.compress_type for x in zipf.infolist()})
-
-    # verify that we've reverted our patching
-    with io.BytesIO() as f:
-        with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("test.txt", "data")
-            assert (zipfile.ZIP_DEFLATED ==
-                    zipf.getinfo("test.txt").compress_type)
