@@ -45,7 +45,7 @@ backend-path = ["test/sub-path"]
 ZIP_BACKEND_TOML = """
 [build-system]
 requires = []
-build-backend = "test.backend:zip_backend"
+build-backend = "test.backend:{backend}"
 """
 
 
@@ -57,14 +57,19 @@ def verify_sys_path():
 
 
 @pytest.fixture
-def verify_zipfile_cleanup():
+def verify_zipfile_cleanup(tmp_path):
     """Verify that we are reverting zipfile patching correctly"""
     yield
+    with open(tmp_path / "write.txt", "wb") as f:
+        f.write(b"data")
     with io.BytesIO() as f:
         with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("test.txt", "data")
-            assert (zipfile.ZIP_DEFLATED ==
-                    zipf.getinfo("test.txt").compress_type)
+            with zipf.open("open.txt", "w") as f:
+                f.write(b"data")
+            zipf.writestr("writestr.txt", b"data")
+            zipf.write(tmp_path / "write.txt", "write.txt")
+            assert ({zipfile.ZIP_DEFLATED}
+                    == {x.compress_type for x in zipf.infolist()})
 
 
 @pytest.mark.parametrize(
@@ -233,7 +238,7 @@ def test_integration(tmp_path, capfd, buildsys, extra_deps, verify_sys_path,
 
 def test_backend_opening_zipfile_compressed(tmp_path, capfd, verify_sys_path):
     with open(tmp_path / "pyproject.toml", "w") as f:
-        f.write(ZIP_BACKEND_TOML)
+        f.write(ZIP_BACKEND_TOML.format(backend="zip_writestr_backend"))
 
     wheel_name = "frobnicate-7-py3-none-any.whl"
     with zipfile.ZipFile(tmp_path / "test.zip", "w") as zipf:
@@ -251,12 +256,18 @@ def test_backend_opening_zipfile_compressed(tmp_path, capfd, verify_sys_path):
                 == {x.compress_type for x in zipf.infolist()})
 
 
-@pytest.mark.xfail(reason="Compression override breaks reading zipfiles")
-def test_backend_opening_zipfile(tmp_path, capfd, verify_sys_path,
+@pytest.mark.parametrize(
+    "backend",
+    ["zip_open_backend",
+     "zip_open_zinfo_backend",
+     "zip_write_backend",
+     "zip_writestr_backend",
+     ])
+def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_sys_path,
                                  verify_zipfile_cleanup):
     """Verify that we do not break opening compressed zips"""
     with open(tmp_path / "pyproject.toml", "w") as f:
-        f.write(ZIP_BACKEND_TOML)
+        f.write(ZIP_BACKEND_TOML.format(backend=backend))
 
     wheel_name = "frobnicate-6-py3-none-any.whl"
     with zipfile.ZipFile(tmp_path / "test.zip", "w",

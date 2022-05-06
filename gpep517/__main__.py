@@ -1,4 +1,5 @@
 import argparse
+import functools
 import importlib
 import json
 import os
@@ -35,15 +36,34 @@ def build_wheel(args):
 
     if not args.allow_compressed:
         import zipfile
-        zipfile.ZipFile.compression = property(
-            lambda self: zipfile.ZIP_STORED,
-            lambda self, value: None,
-            lambda self: None)
-        orig_compress_type = zipfile.ZipInfo.compress_type
-        zipfile.ZipInfo.compress_type = property(
-            lambda self: zipfile.ZIP_STORED,
-            lambda self, value: None,
-            lambda self: None)
+        orig_open = zipfile.ZipFile.open
+        orig_write = zipfile.ZipFile.write
+        orig_writestr = zipfile.ZipFile.writestr
+
+        @functools.wraps(zipfile.ZipFile.open)
+        def override_open(self, name, mode="r", pwd=None,
+                          *, force_zip64=False):
+            if mode == "w":
+                if not isinstance(name, zipfile.ZipInfo):
+                    name = zipfile.ZipInfo(name)
+                name.compress_type = zipfile.ZIP_STORED
+            ret = orig_open(self, name, mode, pwd, force_zip64=force_zip64)
+            return ret
+
+        @functools.wraps(zipfile.ZipFile.write)
+        def override_write(self, filename, arcname=None,
+                           compress_type=None, compresslevel=None):
+            return orig_write(self, filename, arcname, zipfile.ZIP_STORED)
+
+        @functools.wraps(zipfile.ZipFile.writestr)
+        def override_writestr(self, zinfo_or_arcname, data,
+                              compress_type=None, compresslevel=None):
+            return orig_writestr(self, zinfo_or_arcname, data,
+                                 zipfile.ZIP_STORED)
+
+        zipfile.ZipFile.open = override_open
+        zipfile.ZipFile.write = override_write
+        zipfile.ZipFile.writestr = override_writestr
 
     path_len = len(sys.path)
     sys.path[:0] = build_sys.get("backend-path", [])
@@ -57,8 +77,9 @@ def build_wheel(args):
     sys.path[:len(sys.path)-path_len] = []
 
     if not args.allow_compressed:
-        delattr(zipfile.ZipFile, "compression")
-        setattr(zipfile.ZipInfo, "compress_type", orig_compress_type)
+        zipfile.ZipFile.open = orig_open
+        zipfile.ZipFile.write = orig_write
+        zipfile.ZipFile.writestr = orig_writestr
 
     with os.fdopen(args.output_fd, "w") as out:
         print(wheel_name, file=out)
