@@ -43,6 +43,13 @@ backend-path = ["test/sub-path"]
 """
 
 
+@pytest.fixture
+def verify_sys_path():
+    orig_path = list(sys.path)
+    yield
+    assert orig_path == sys.path
+
+
 @pytest.mark.parametrize(
     ["toml", "expected"],
     [("FLIT_TOML", "flit_core.buildapi"),
@@ -68,27 +75,23 @@ def test_get_backend(tmp_path, capfd, toml, expected):
      ("test.backend:top_class", "frobnicate-2-py3-none-any.whl"),
      ("test.backend:top_class.sub_class", "frobnicate-3-py3-none-any.whl"),
      ])
-def test_build_wheel(capfd, backend, expected):
-    orig_path = list(sys.path)
+def test_build_wheel(capfd, backend, expected, verify_sys_path):
     assert 0 == main(["", "build-wheel",
                       "--backend", backend,
                       "--output-fd", "1",
                       "--wheel-dir", "."])
     assert f"{expected}\n" == capfd.readouterr().out
-    assert orig_path == sys.path
 
 
-def test_build_wheel_backend_path(tmp_path, capfd):
+def test_build_wheel_backend_path(tmp_path, capfd, verify_sys_path):
     with open(tmp_path / "pyproject.toml", "w") as f:
         f.write(TEST_BACKEND_TOML)
 
-    orig_path = list(sys.path)
     assert 0 == main(["", "build-wheel",
                       "--output-fd", "1",
                       "--pyproject-toml", str(tmp_path / "pyproject.toml"),
                       "--wheel-dir", "."])
     assert "frobnicate-4-py3-none-any.whl\n" == capfd.readouterr().out
-    assert orig_path == sys.path
 
 
 @pytest.mark.parametrize(
@@ -96,15 +99,14 @@ def test_build_wheel_backend_path(tmp_path, capfd):
     [("{}", "frobnicate-5-py3-none-any.whl"),
      ('{"version": 6}', "frobnicate-6-py3-none-any.whl"),
      ])
-def test_build_wheel_config_settings(tmp_path, capfd, settings, expected):
-    orig_path = list(sys.path)
+def test_build_wheel_config_settings(tmp_path, capfd, settings, expected,
+                                     verify_sys_path):
     assert 0 == main(["", "build-wheel",
                       "--backend", "test.backend",
                       "--config-json", settings,
                       "--output-fd", "1",
                       "--wheel-dir", "."])
     assert f"{expected}\n" == capfd.readouterr().out
-    assert orig_path == sys.path
 
 
 def all_files(top_path):
@@ -146,8 +148,7 @@ def test_install_wheel(tmp_path, prefix):
     } == dict(all_files(tmp_path))
 
 
-def test_build_self(tmp_path, capfd):
-    orig_path = list(sys.path)
+def test_build_self(tmp_path, capfd, verify_sys_path):
     assert 0 == main(["", "build-wheel",
                       "--allow-compressed",
                       "--output-fd", "1",
@@ -155,7 +156,6 @@ def test_build_self(tmp_path, capfd):
     pkg = f"gpep517-{__version__}"
     wheel_name = f"{pkg}-py3-none-any.whl"
     assert f"{wheel_name}\n" == capfd.readouterr().out
-    assert orig_path == sys.path
 
     with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
         assert all(x in zipf.namelist() for x in [
@@ -187,7 +187,7 @@ def pushd(path):
      ("poetry.core", []),
      ("setuptools", ["wheel"]),
      ])
-def test_integration(tmp_path, capfd, buildsys, extra_deps):
+def test_integration(tmp_path, capfd, buildsys, extra_deps, verify_sys_path):
     pytest.importorskip(buildsys)
     for dep in extra_deps:
         pytest.importorskip(dep)
@@ -195,7 +195,6 @@ def test_integration(tmp_path, capfd, buildsys, extra_deps):
     shutil.copytree(pathlib.Path("test/integration") / buildsys, tmp_path,
                     dirs_exist_ok=True)
 
-    orig_path = list(sys.path)
     with pushd(tmp_path):
         assert 0 == main(["", "build-wheel",
                           "--output-fd", "1",
@@ -203,7 +202,6 @@ def test_integration(tmp_path, capfd, buildsys, extra_deps):
     pkg = "testpkg-1"
     wheel_name = f"{pkg}-py3-none-any.whl"
     assert wheel_name == capfd.readouterr().out.splitlines()[-1]
-    assert orig_path == sys.path
 
     with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
         assert [
