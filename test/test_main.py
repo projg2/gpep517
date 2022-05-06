@@ -206,7 +206,7 @@ def pushd(path):
      ("poetry.core", []),
      ("setuptools", ["wheel"]),
      ])
-def test_integration(tmp_path, capfd, buildsys, extra_deps, verify_sys_path,
+def test_integration(tmp_path, capfd, buildsys, extra_deps,
                      verify_zipfile_cleanup):
     pytest.importorskip(buildsys)
     for dep in extra_deps:
