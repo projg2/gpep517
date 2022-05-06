@@ -42,6 +42,12 @@ build-backend = "backend"
 backend-path = ["test/sub-path"]
 """
 
+ZIP_BACKEND_TOML = """
+[build-system]
+requires = []
+build-backend = "test.backend:zip_backend"
+"""
+
 
 @pytest.fixture
 def verify_sys_path():
@@ -212,6 +218,36 @@ def test_integration(tmp_path, capfd, buildsys, extra_deps, verify_sys_path):
         assert (b"[console_scripts]\nnewscript=testpkg:entry_point" ==
                 zipf.read(f"{pkg}.dist-info/entry_points.txt")
                 .strip().replace(b" ", b""))
+        assert ({zipfile.ZIP_STORED}
+                == {x.compress_type for x in zipf.infolist()})
+
+    # verify that we've reverted our patching
+    with io.BytesIO() as f:
+        with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
+            zipf.writestr("test.txt", "data")
+            assert (zipfile.ZIP_DEFLATED ==
+                    zipf.getinfo("test.txt").compress_type)
+
+
+@pytest.mark.xfail(reason="Compression override breaks reading zipfiles")
+def test_backend_opening_zipfile(tmp_path, capfd, verify_sys_path):
+    """Verify that we do not break opening compressed zips"""
+    with open(tmp_path / "pyproject.toml", "w") as f:
+        f.write(ZIP_BACKEND_TOML)
+
+    wheel_name = "frobnicate-6-py3-none-any.whl"
+    with zipfile.ZipFile(tmp_path / "test.zip", "w",
+                         compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr("test.txt", wheel_name)
+        assert zipfile.ZIP_DEFLATED == zipf.getinfo("test.txt").compress_type
+
+    assert 0 == main(["", "build-wheel",
+                      "--output-fd", "1",
+                      "--pyproject-toml", str(tmp_path / "pyproject.toml"),
+                      "--wheel-dir", str(tmp_path)])
+    assert f"{wheel_name}\n" == capfd.readouterr().out
+
+    with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
         assert ({zipfile.ZIP_STORED}
                 == {x.compress_type for x in zipf.infolist()})
 
