@@ -72,6 +72,7 @@ def build_wheel(args):
         except Exception:
             return False
 
+    orig_modules = frozenset(sys.modules)
     orig_path = list(sys.path)
     # strip the current directory from sys.path
     cwd = pathlib.Path.cwd()
@@ -84,6 +85,9 @@ def build_wheel(args):
             backend = getattr(backend, name)
 
     wheel_name = backend.build_wheel(args.wheel_dir, args.config_json)
+
+    for mod in frozenset(sys.modules).difference(orig_modules):
+        del sys.modules[mod]
     sys.path = orig_path
 
     if not args.allow_compressed:

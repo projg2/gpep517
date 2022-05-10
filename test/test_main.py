@@ -39,7 +39,7 @@ TEST_BACKEND_TOML = """
 [build-system]
 requires = []
 build-backend = "backend"
-backend-path = ["test/sub-path"]
+backend-path = ["{path}"]
 """
 
 ZIP_BACKEND_TOML = """
@@ -50,10 +50,12 @@ build-backend = "test.backend:{backend}"
 
 
 @pytest.fixture
-def verify_sys_path():
+def verify_mod_cleanup():
+    orig_modules = sorted(sys.modules)
     orig_path = list(sys.path)
     yield
     assert orig_path == sys.path
+    assert orig_modules == sorted(sys.modules)
 
 
 @pytest.fixture
@@ -97,7 +99,7 @@ def test_get_backend(tmp_path, capfd, toml, expected):
      ("test.backend:top_class", "frobnicate-2-py3-none-any.whl"),
      ("test.backend:top_class.sub_class", "frobnicate-3-py3-none-any.whl"),
      ])
-def test_build_wheel(capfd, backend, expected, verify_sys_path):
+def test_build_wheel(capfd, backend, expected, verify_mod_cleanup):
     assert 0 == main(["", "build-wheel",
                       "--backend", backend,
                       "--output-fd", "1",
@@ -105,15 +107,21 @@ def test_build_wheel(capfd, backend, expected, verify_sys_path):
     assert f"{expected}\n" == capfd.readouterr().out
 
 
-def test_build_wheel_backend_path(tmp_path, capfd, verify_sys_path):
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [("test/sub-path", "frobnicate-4-py3-none-any.whl"),
+     ("test", "frobnicate-1-py3-none-any.whl"),
+     ])
+def test_build_wheel_backend_path(tmp_path, capfd, path, expected,
+                                  verify_mod_cleanup):
     with open(tmp_path / "pyproject.toml", "w") as f:
-        f.write(TEST_BACKEND_TOML)
+        f.write(TEST_BACKEND_TOML.format(path=path))
 
     assert 0 == main(["", "build-wheel",
                       "--output-fd", "1",
                       "--pyproject-toml", str(tmp_path / "pyproject.toml"),
                       "--wheel-dir", "."])
-    assert "frobnicate-4-py3-none-any.whl\n" == capfd.readouterr().out
+    assert f"{expected}\n" == capfd.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -122,7 +130,7 @@ def test_build_wheel_backend_path(tmp_path, capfd, verify_sys_path):
      ('{"version": 6}', "frobnicate-6-py3-none-any.whl"),
      ])
 def test_build_wheel_config_settings(tmp_path, capfd, settings, expected,
-                                     verify_sys_path):
+                                     verify_mod_cleanup):
     assert 0 == main(["", "build-wheel",
                       "--backend", "test.backend",
                       "--config-json", settings,
@@ -170,7 +178,7 @@ def test_install_wheel(tmp_path, prefix):
     } == dict(all_files(tmp_path))
 
 
-def test_build_self(tmp_path, capfd, verify_sys_path):
+def test_build_self(tmp_path, capfd, verify_mod_cleanup):
     assert 0 == main(["", "build-wheel",
                       "--allow-compressed",
                       "--output-fd", "1",
@@ -236,7 +244,8 @@ def test_integration(tmp_path, capfd, buildsys, extra_deps,
                 == {x.compress_type for x in zipf.infolist()})
 
 
-def test_backend_opening_zipfile_compressed(tmp_path, capfd, verify_sys_path):
+def test_backend_opening_zipfile_compressed(tmp_path, capfd,
+                                            verify_mod_cleanup):
     with open(tmp_path / "pyproject.toml", "w") as f:
         f.write(ZIP_BACKEND_TOML.format(backend="zip_writestr_backend"))
 
@@ -263,7 +272,7 @@ def test_backend_opening_zipfile_compressed(tmp_path, capfd, verify_sys_path):
      "zip_write_backend",
      "zip_writestr_backend",
      ])
-def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_sys_path,
+def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_mod_cleanup,
                                  verify_zipfile_cleanup):
     """Verify that we do not break opening compressed zips"""
     with open(tmp_path / "pyproject.toml", "w") as f:
