@@ -3,6 +3,7 @@ import functools
 import importlib
 import json
 import os
+import pathlib
 import sys
 import sysconfig
 
@@ -65,7 +66,16 @@ def build_wheel(args):
         zipfile.ZipFile.write = override_write
         zipfile.ZipFile.writestr = override_writestr
 
-    path_len = len(sys.path)
+    def safe_samefile(path, cwd):
+        try:
+            return cwd.samefile(path)
+        except Exception:
+            return False
+
+    orig_path = list(sys.path)
+    # strip the current directory from sys.path
+    cwd = pathlib.Path.cwd()
+    sys.path = [x for x in sys.path if not safe_samefile(x, cwd)]
     sys.path[:0] = build_sys.get("backend-path", [])
     backend = importlib.import_module(package)
 
@@ -74,7 +84,7 @@ def build_wheel(args):
             backend = getattr(backend, name)
 
     wheel_name = backend.build_wheel(args.wheel_dir, args.config_json)
-    sys.path[:len(sys.path)-path_len] = []
+    sys.path = orig_path
 
     if not args.allow_compressed:
         zipfile.ZipFile.open = orig_open
