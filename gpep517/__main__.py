@@ -130,6 +130,22 @@ def install_wheel(args):
     return 0
 
 
+def verify_pyc(args):
+    from gpep517.qa import qa_verify_pyc
+
+    install_dict = install_scheme_dict(args.prefix or "/usr", "")
+    sitedirs = frozenset(install_dict[x] for x in ("purelib", "platlib"))
+    result = qa_verify_pyc(args.destdir, sitedirs)
+
+    def fpath(p):
+        return "/" + os.path.relpath(p, args.destdir)
+
+    for kind, entries in result.items():
+        for e in sorted(entries):
+            print(f"{kind}:{':'.join(fpath(x) for x in e)}")
+    return 1 if any(v for v in result.values()) else 0
+
+
 def main(argv=sys.argv):
     argp = argparse.ArgumentParser(prog=argv[0])
 
@@ -184,6 +200,17 @@ def main(argv=sys.argv):
                         help="Prefix to install to (default: /usr)")
     parser.add_argument("wheel",
                         help="Wheel to install")
+
+    parser = subp.add_parser("verify-pyc",
+                             help="Verify that all installed modules were "
+                                  "byte-compiled and there are no stray .pyc "
+                                  "files")
+    parser.add_argument("--destdir",
+                        help="Offset directory where modules were installed",
+                        required=True)
+    parser.add_argument("--prefix",
+                        default="/usr",
+                        help="Prefix used for install (default: /usr)")
 
     args = argp.parse_args(argv[1:])
 
