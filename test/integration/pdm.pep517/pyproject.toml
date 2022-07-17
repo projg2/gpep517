@@ -19,4 +19,4 @@ Home = "https://example.com/"
 newscript = "testpkg:entry_point"
 
 [tool.pdm]
-version = {from = "testpkg/__init__.py"}
+version = {source = "file", path = "testpkg/__init__.py"}
