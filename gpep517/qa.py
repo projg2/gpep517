@@ -5,7 +5,6 @@ import os.path
 
 def qa_verify_pyc(destdir, sitedirs):
     missing_pyc = []
-    older_pyc = []
     invalid_pyc = []
     stray_pyc = []
 
@@ -40,18 +39,11 @@ def qa_verify_pyc(destdir, sitedirs):
                         invalid_pyc.append((pyc, py))
                         continue
 
-                # 3. check mtime
-                py_st = os.stat(py)
-                pyc_st = os.stat(pyc)
-                if pyc_st.st_mtime < py_st.st_mtime:
-                    older_pyc.append((pyc, py))
-
-        # 4. any remaining .pyc files are stray
+        # 3. any remaining .pyc files are stray
         stray_pyc.extend((pyc,) for pyc in pyc_files)
 
     return {
         "missing": missing_pyc,
         "invalid": invalid_pyc,
-        "older": older_pyc,
         "stray": stray_pyc,
     }
