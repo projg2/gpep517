@@ -138,7 +138,9 @@ def verify_pyc(args):
     result = qa_verify_pyc(args.destdir, sitedirs)
 
     def fpath(p):
-        return "/" + os.path.relpath(p, args.destdir)
+        if p.startswith("/"):
+            return "/" + os.path.relpath(p, args.destdir)
+        return p
 
     for kind, entries in result.items():
         for e in sorted(entries):
