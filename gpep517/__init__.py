@@ -1,3 +1,3 @@
-"""A backend script to aid installing Python packages in Gentoo."""
+"""Python package builder and installer for non-pip-centric world"""
 
 __version__ = "8"
