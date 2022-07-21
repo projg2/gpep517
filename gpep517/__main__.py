@@ -191,7 +191,7 @@ def main(argv=sys.argv):
                              help="Build wheel using specified backend")
     parser.add_argument("--backend",
                         help="Backend to use (defaults to reading "
-                             "from pyproject.toml")
+                             "from pyproject.toml)")
     parser.add_argument("--config-json",
                         help="JSON-encoded dictionary of config_settings "
                              "to pass to the build backend",
