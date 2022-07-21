@@ -1,4 +1,5 @@
 import contextlib
+import importlib.machinery
 import importlib.util
 import io
 import os
@@ -147,8 +148,13 @@ def all_files(top_path):
             continue
         for f in sub_files:
             file_path = pathlib.Path(cur_dir) / f
-            data = None
-            if not f.endswith(".pyc"):
+            if f.endswith(".pyc"):
+                # for .pyc files, we're interested in whether the correct
+                # source path was embedded inside it
+                loader = importlib.machinery.SourcelessFileLoader(
+                    "testpkg", file_path)
+                data = loader.get_code("testpkg").co_filename
+            else:
                 data = file_path.read_text().splitlines()[0]
             yield (str(file_path.relative_to(top_path)),
                    (os.access(file_path, os.X_OK), data))
@@ -188,11 +194,11 @@ def test_install_wheel(tmp_path, optimize, prefix):
         opt_levels = ALL_OPT_LEVELS
     elif optimize is not None:
         opt_levels = [int(x) for x in optimize.split(",")]
+    init_mod = f"{prefix}{sitedir}/testpkg/__init__.py"
     for opt in opt_levels:
         pyc = importlib.util.cache_from_source(
-            f"{prefix}{sitedir}/testpkg/__init__.py",
-            optimization=opt if opt != 0 else "")
-        expected[pyc] = (False, None)
+            init_mod, optimization=opt if opt != 0 else "")
+        expected[pyc] = (False, "/" + init_mod)
 
     assert expected == dict(all_files(tmp_path))
 
