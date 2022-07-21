@@ -1,4 +1,5 @@
 import contextlib
+import importlib.util
 import io
 import os
 import pathlib
@@ -10,7 +11,7 @@ import zipfile
 import pytest
 
 from gpep517 import __version__
-from gpep517.__main__ import main
+from gpep517.__main__ import main, ALL_OPT_LEVELS
 
 
 FLIT_TOML = """
@@ -146,25 +147,30 @@ def all_files(top_path):
             continue
         for f in sub_files:
             file_path = pathlib.Path(cur_dir) / f
+            data = None
+            if not f.endswith(".pyc"):
+                data = file_path.read_text().splitlines()[0]
             yield (str(file_path.relative_to(top_path)),
-                   (os.access(file_path, os.X_OK),
-                    file_path.read_text().splitlines()[0]))
+                   (os.access(file_path, os.X_OK), data))
 
 
+@pytest.mark.parametrize(["optimize"], [(None,), ("0",), ("1,2",), ("all",)])
 @pytest.mark.parametrize(["prefix"], [("/usr",), ("/eprefix/usr",)])
-def test_install_wheel(tmp_path, prefix):
+def test_install_wheel(tmp_path, optimize, prefix):
     assert 0 == main(["", "install-wheel",
                       "--destdir", str(tmp_path),
                       "--interpreter", "/usr/bin/pythontest",
                       "test/test-pkg/dist/test-1-py3-none-any.whl"] +
-                     (["--prefix", prefix] if prefix != "/usr" else []))
+                     (["--prefix", prefix] if prefix != "/usr" else []) +
+                     (["--optimize", optimize]
+                      if optimize is not None else []))
 
     expected_shebang = "#!/usr/bin/pythontest"
     prefix = prefix.lstrip("/")
     incdir = sysconfig.get_path("include", vars={"installed_base": ""})
     sitedir = sysconfig.get_path("purelib", vars={"base": ""})
 
-    assert {
+    expected = {
         f"{prefix}/bin/newscript": (True, expected_shebang),
         f"{prefix}/bin/oldscript": (True, expected_shebang),
         f"{prefix}{incdir}/test/test.h":
@@ -175,7 +181,20 @@ def test_install_wheel(tmp_path, prefix):
         f"{prefix}{sitedir}/testpkg/datafile.txt":
         (False, "data"),
         f"{prefix}/share/test/datafile.txt": (False, "data"),
-    } == dict(all_files(tmp_path))
+    }
+
+    opt_levels = []
+    if optimize == "all":
+        opt_levels = ALL_OPT_LEVELS
+    elif optimize is not None:
+        opt_levels = [int(x) for x in optimize.split(",")]
+    for opt in opt_levels:
+        pyc = importlib.util.cache_from_source(
+            f"{prefix}{sitedir}/testpkg/__init__.py",
+            optimization=opt if opt != 0 else "")
+        expected[pyc] = (False, None)
+
+    assert expected == dict(all_files(tmp_path))
 
 
 def test_build_self(tmp_path, capfd, verify_mod_cleanup):

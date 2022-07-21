@@ -8,6 +8,9 @@ import sys
 import sysconfig
 
 
+ALL_OPT_LEVELS = [0, 1, 2]
+
+
 def get_toml(path):
     if sys.version_info >= (3, 11):
         import tomllib
@@ -111,6 +114,13 @@ def install_scheme_dict(prefix, dist_name):
     return ret
 
 
+def parse_optimize_arg(val):
+    spl = val.split(",")
+    if "all" in spl:
+        return ALL_OPT_LEVELS
+    return [int(x) for x in spl]
+
+
 def install_wheel(args):
     from installer import install
     from installer.destinations import SchemeDictionaryDestination
@@ -122,7 +132,7 @@ def install_wheel(args):
             install_scheme_dict(args.prefix or "/usr", source.distribution),
             args.interpreter,
             get_launcher_kind(),
-            bytecode_optimization_levels=[],
+            bytecode_optimization_levels=args.optimize,
             destdir=args.destdir,
         )
         install(source, dest, {})
@@ -197,6 +207,13 @@ def main(argv=sys.argv):
                         default=sys.executable,
                         help="The interpreter to put in script shebangs "
                         f"(default: {sys.executable})")
+    parser.add_argument("--optimize",
+                        type=parse_optimize_arg,
+                        default=[],
+                        help="Comma-separated list of optimization levels "
+                        "to compile bytecode for (default: none), pass 'all' "
+                        "to enable all known optimization levels (currently: "
+                        f"{', '.join(str(x) for x in ALL_OPT_LEVELS)})")
     parser.add_argument("--prefix",
                         default="/usr",
                         help="Prefix to install to (default: /usr)")
