@@ -9,6 +9,7 @@ import sysconfig
 
 
 ALL_OPT_LEVELS = [0, 1, 2]
+DEFAULT_PREFIX = "/usr"
 
 
 def get_toml(path):
@@ -158,6 +159,18 @@ def verify_pyc(args):
     return 1 if any(v for v in result.values()) else 0
 
 
+def add_install_path_args(parser):
+    group = parser.add_argument_group("install paths")
+    group.add_argument("--destdir",
+                       help="Staging directory for the install (it will "
+                       "be prepended to all paths)",
+                       required=True)
+    group.add_argument("--prefix",
+                       default=DEFAULT_PREFIX,
+                       help="Prefix to install to "
+                       f"(default: {DEFAULT_PREFIX})")
+
+
 def main(argv=sys.argv):
     argp = argparse.ArgumentParser(prog=argv[0])
 
@@ -200,9 +213,7 @@ def main(argv=sys.argv):
 
     parser = subp.add_parser("install-wheel",
                              help="Install wheel")
-    parser.add_argument("--destdir",
-                        help="Directory to install to",
-                        required=True)
+    add_install_path_args(parser)
     parser.add_argument("--interpreter",
                         default=sys.executable,
                         help="The interpreter to put in script shebangs "
@@ -214,9 +225,6 @@ def main(argv=sys.argv):
                         "to compile bytecode for (default: none), pass 'all' "
                         "to enable all known optimization levels (currently: "
                         f"{', '.join(str(x) for x in ALL_OPT_LEVELS)})")
-    parser.add_argument("--prefix",
-                        default="/usr",
-                        help="Prefix to install to (default: /usr)")
     parser.add_argument("wheel",
                         help="Wheel to install")
 
@@ -224,12 +232,7 @@ def main(argv=sys.argv):
                              help="Verify that all installed modules were "
                                   "byte-compiled and there are no stray .pyc "
                                   "files")
-    parser.add_argument("--destdir",
-                        help="Offset directory where modules were installed",
-                        required=True)
-    parser.add_argument("--prefix",
-                        default="/usr",
-                        help="Prefix used for install (default: /usr)")
+    add_install_path_args(parser)
 
     args = argp.parse_args(argv[1:])
 
