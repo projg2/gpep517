@@ -129,7 +129,7 @@ def install_wheel(args):
 
     with WheelFile.open(args.wheel) as source:
         dest = SchemeDictionaryDestination(
-            install_scheme_dict(args.prefix or "/usr", source.distribution),
+            install_scheme_dict(args.prefix, source.distribution),
             args.interpreter,
             get_launcher_kind(),
             bytecode_optimization_levels=args.optimize,
@@ -143,7 +143,7 @@ def install_wheel(args):
 def verify_pyc(args):
     from gpep517.qa import qa_verify_pyc
 
-    install_dict = install_scheme_dict(args.prefix or "/usr", "")
+    install_dict = install_scheme_dict(args.prefix, "")
     sitedirs = frozenset(install_dict[x] for x in ("purelib", "platlib"))
     result = qa_verify_pyc(args.destdir, sitedirs)
 
