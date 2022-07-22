@@ -10,6 +10,7 @@ import sysconfig
 
 ALL_OPT_LEVELS = [0, 1, 2]
 DEFAULT_PREFIX = "/usr"
+DEFAULT_FALLBACK_BACKEND = "setuptools.build_meta:__legacy__"
 
 
 def get_toml(path):
@@ -36,7 +37,13 @@ def get_backend(args):
 
 def build_wheel(args):
     build_sys = get_toml(args.pyproject_toml).get("build-system", {})
-    backend_s = args.backend or build_sys["build-backend"]
+    backend_s = args.backend
+    if backend_s is None:
+        backend_s = build_sys.get("build-backend", args.fallback_backend)
+        if backend_s is None:
+            raise RuntimeError(
+                "pyproject.toml is missing or does not specify build-backend "
+                "and --no-fallback-backend specified")
     package, _, obj = backend_s.partition(":")
 
     if not args.allow_compressed:
@@ -192,6 +199,17 @@ def main(argv=sys.argv):
     parser.add_argument("--backend",
                         help="Backend to use (defaults to reading "
                              "from pyproject.toml)")
+    parser.add_argument("--fallback-backend",
+                        default=DEFAULT_FALLBACK_BACKEND,
+                        help="Backend to use if pyproject.toml does not exist "
+                        "or does not specify one "
+                        f"(default: {DEFAULT_FALLBACK_BACKEND})")
+    parser.add_argument("--no-fallback-backend",
+                        action="store_const",
+                        dest="fallback_backend",
+                        const=None,
+                        help="Disable backend fallback (i.e. require backend "
+                        "declaration in pyproject.toml")
     parser.add_argument("--config-json",
                         help="JSON-encoded dictionary of config_settings "
                              "to pass to the build backend",

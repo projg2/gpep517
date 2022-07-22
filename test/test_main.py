@@ -109,6 +109,24 @@ def test_build_wheel(capfd, backend, expected, verify_mod_cleanup):
     assert f"{expected}\n" == capfd.readouterr().out
 
 
+def test_build_wheel_fallback(capfd, verify_mod_cleanup):
+    assert 0 == main(["", "build-wheel",
+                      "--fallback-backend", "test.backend",
+                      "--output-fd", "1",
+                      "--pyproject-toml", "enoent.toml",
+                      "--wheel-dir", "."])
+    assert "frobnicate-1-py3-none-any.whl\n" == capfd.readouterr().out
+
+
+def test_build_wheel_no_fallback():
+    with pytest.raises(RuntimeError):
+        main(["", "build-wheel",
+                  "--no-fallback-backend",
+                  "--output-fd", "1",
+                  "--pyproject-toml", "enoent.toml",
+                  "--wheel-dir", "."])
+
+
 @pytest.mark.parametrize(
     ("path", "expected"),
     [("test/sub-path", "frobnicate-4-py3-none-any.whl"),
@@ -238,10 +256,11 @@ def pushd(path):
      ("pdm.pep517", []),
      ("poetry.core", []),
      ("setuptools", ["wheel"]),
+     ("setuptools-legacy", ["wheel"]),
      ])
 def test_integration(tmp_path, capfd, buildsys, extra_deps,
                      verify_zipfile_cleanup):
-    pytest.importorskip(buildsys)
+    pytest.importorskip(buildsys.split("-", 1)[0])
     for dep in extra_deps:
         pytest.importorskip(dep)
 
