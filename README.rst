@@ -52,11 +52,9 @@ Example use (without error handling):
 
 .. code-block:: bash
 
-    backend=$(gpep517 get-backend)
-    mkdir -p build
+    mkdir dist
     wheel_name=$(
         gpep517 build-wheel --output-fd 3 --wheel-dir dist \
-            --backend "${backend:-setuptools.build_meta:__legacy__}" \
             3>&1 >&2
     )
     gpep517 install-wheel --destdir install "dist/${wheel_name}"
