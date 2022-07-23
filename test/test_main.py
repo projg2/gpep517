@@ -221,7 +221,8 @@ def test_install_wheel(tmp_path, optimize, prefix):
     assert expected == dict(all_files(tmp_path))
 
 
-def test_build_self(tmp_path, capfd, verify_mod_cleanup):
+def test_build_self(tmp_path, capfd):
+    pytest.importorskip("flit_core")
     assert 0 == main(["", "build-wheel",
                       "--allow-compressed",
                       "--output-fd", "1",

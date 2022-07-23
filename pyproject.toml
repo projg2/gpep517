@@ -17,10 +17,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "flit_core",
     "pytest",
 ]
 test-full = [
+    "flit_core",
     "hatchling",
     "pdm-pep517",
     "poetry-core",
