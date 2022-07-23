@@ -178,6 +178,55 @@ def add_install_path_args(parser):
                        f"(default: {DEFAULT_PREFIX})")
 
 
+def add_build_args(parser):
+    group = parser.add_argument_group("backend selection")
+    group.add_argument("--backend",
+                       help="Backend to use (defaults to reading "
+                            "from pyproject.toml)")
+    group.add_argument("--fallback-backend",
+                       default=DEFAULT_FALLBACK_BACKEND,
+                       help="Backend to use if pyproject.toml does not exist "
+                       "or does not specify one "
+                       f"(default: {DEFAULT_FALLBACK_BACKEND!r})")
+    group.add_argument("--no-fallback-backend",
+                       action="store_const",
+                       dest="fallback_backend",
+                       const=None,
+                       help="Disable backend fallback (i.e. require backend "
+                       "declaration in pyproject.toml")
+    group.add_argument("--pyproject-toml",
+                       default="pyproject.toml",
+                       help="Path to pyproject.toml file (used only if "
+                       "--backend is not specified)")
+
+    group = parser.add_argument_group("build options")
+    group.add_argument("--allow-compressed",
+                       help="Allow creating compressed zipfiles (gpep517 "
+                       "will attempt to patch compression out by default)",
+                       action="store_true")
+    group.add_argument("--config-json",
+                       help="JSON-encoded dictionary of config_settings "
+                            "to pass to the build backend",
+                       type=json.loads)
+
+
+def add_install_args(parser):
+    add_install_path_args(parser)
+
+    group = parser.add_argument_group("install options")
+    group.add_argument("--interpreter",
+                       default=sys.executable,
+                       help="The interpreter to put in script shebangs "
+                       f"(default: {sys.executable})")
+    group.add_argument("--optimize",
+                       type=parse_optimize_arg,
+                       default=[],
+                       help="Comma-separated list of optimization levels "
+                       "to compile bytecode for (default: none), pass 'all' "
+                       "to enable all known optimization levels (currently: "
+                       f"{', '.join(str(x) for x in ALL_OPT_LEVELS)})")
+
+
 def main(argv=sys.argv):
     argp = argparse.ArgumentParser(prog=argv[0])
 
@@ -196,53 +245,19 @@ def main(argv=sys.argv):
 
     parser = subp.add_parser("build-wheel",
                              help="Build wheel using specified backend")
-    parser.add_argument("--backend",
-                        help="Backend to use (defaults to reading "
-                             "from pyproject.toml)")
-    parser.add_argument("--fallback-backend",
-                        default=DEFAULT_FALLBACK_BACKEND,
-                        help="Backend to use if pyproject.toml does not exist "
-                        "or does not specify one "
-                        f"(default: {DEFAULT_FALLBACK_BACKEND})")
-    parser.add_argument("--no-fallback-backend",
-                        action="store_const",
-                        dest="fallback_backend",
-                        const=None,
-                        help="Disable backend fallback (i.e. require backend "
-                        "declaration in pyproject.toml")
-    parser.add_argument("--config-json",
-                        help="JSON-encoded dictionary of config_settings "
-                             "to pass to the build backend",
-                        type=json.loads)
-    parser.add_argument("--allow-compressed",
-                        help="Allow creating compressed zipfiles (gpep517 "
-                        "will attempt to patch compression out by default)",
-                        action="store_true")
-    parser.add_argument("--output-fd",
-                        help="FD to output the wheel name to",
-                        required=True,
-                        type=int)
-    parser.add_argument("--pyproject-toml",
-                        default="pyproject.toml",
-                        help="Path to pyproject.toml file")
-    parser.add_argument("--wheel-dir",
-                        help="Directory to output the wheel into",
-                        required=True)
+    group = parser.add_argument_group("required arguments")
+    group.add_argument("--output-fd",
+                       help="FD to output the wheel name to",
+                       required=True,
+                       type=int)
+    group.add_argument("--wheel-dir",
+                       help="Directory to write the wheel into",
+                       required=True)
+    add_build_args(parser)
 
     parser = subp.add_parser("install-wheel",
                              help="Install wheel")
-    add_install_path_args(parser)
-    parser.add_argument("--interpreter",
-                        default=sys.executable,
-                        help="The interpreter to put in script shebangs "
-                        f"(default: {sys.executable})")
-    parser.add_argument("--optimize",
-                        type=parse_optimize_arg,
-                        default=[],
-                        help="Comma-separated list of optimization levels "
-                        "to compile bytecode for (default: none), pass 'all' "
-                        "to enable all known optimization levels (currently: "
-                        f"{', '.join(str(x) for x in ALL_OPT_LEVELS)})")
+    add_install_args(parser)
     parser.add_argument("wheel",
                         help="Wheel to install")
 
