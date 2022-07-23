@@ -268,19 +268,25 @@ def pushd(path):
         os.chdir(orig_dir)
 
 
-@pytest.mark.parametrize(
-    ["buildsys", "extra_deps"],
-    [("flit_core", []),
-     ("hatchling", []),
-     ("pdm.pep517", []),
-     ("poetry.core", []),
-     ("setuptools", ["wheel"]),
-     ("setuptools-legacy", ["wheel"]),
-     ])
-def test_integration(tmp_path, capfd, buildsys, extra_deps,
-                     verify_zipfile_cleanup):
+INTEGRATION_TESTS = [
+    "flit_core",
+    "hatchling",
+    "pdm.pep517",
+    "poetry.core",
+    "setuptools",
+    "setuptools-legacy",
+]
+
+INTEGRATION_TEST_EXTRA_DEPS = {
+    "setuptools": ["wheel"],
+    "setuptools-legacy": ["wheel"],
+}
+
+
+@pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
+def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup):
     pytest.importorskip(buildsys.split("-", 1)[0])
-    for dep in extra_deps:
+    for dep in INTEGRATION_TEST_EXTRA_DEPS.get(buildsys, []):
         pytest.importorskip(dep)
 
     shutil.copytree(pathlib.Path("test/integration") / buildsys, tmp_path,
@@ -305,6 +311,30 @@ def test_integration(tmp_path, capfd, buildsys, extra_deps,
                 .strip().replace(b" ", b""))
         assert ({zipfile.ZIP_STORED}
                 == {x.compress_type for x in zipf.infolist()})
+
+
+@pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
+def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup):
+    pytest.importorskip(buildsys.split("-", 1)[0])
+    for dep in INTEGRATION_TEST_EXTRA_DEPS.get(buildsys, []):
+        pytest.importorskip(dep)
+
+    shutil.copytree(pathlib.Path("test/integration") / buildsys, tmp_path,
+                    dirs_exist_ok=True)
+
+    destdir = tmp_path / "install"
+    with pushd(tmp_path):
+        assert 0 == main(["", "install-from-source",
+                          "--destdir", str(destdir),
+                          "--prefix", "/usr"])
+
+    sitedir = destdir / (sysconfig.get_path("purelib", vars={"base": "/usr"})
+                         .lstrip(os.path.sep))
+    assert all(dict((x, os.path.exists(x)) for x in
+                    [f"{destdir}/usr/bin/newscript",
+                     f"{sitedir}/testpkg/__init__.py",
+                     f"{sitedir}/testpkg/datafile.txt",
+                     ]).values())
 
 
 def test_backend_opening_zipfile_compressed(tmp_path, capfd,
