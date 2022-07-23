@@ -6,6 +6,7 @@ import os
 import pathlib
 import sys
 import sysconfig
+import tempfile
 
 
 ALL_OPT_LEVELS = [0, 1, 2]
@@ -35,7 +36,7 @@ def get_backend(args):
     return 0
 
 
-def build_wheel(args):
+def build_wheel_impl(args, wheel_dir):
     build_sys = get_toml(args.pyproject_toml).get("build-system", {})
     backend_s = args.backend
     if backend_s is None:
@@ -95,7 +96,7 @@ def build_wheel(args):
         for name in obj.split("."):
             backend = getattr(backend, name)
 
-    wheel_name = backend.build_wheel(args.wheel_dir, args.config_json)
+    wheel_name = backend.build_wheel(wheel_dir, args.config_json)
 
     for mod in frozenset(sys.modules).difference(orig_modules):
         del sys.modules[mod]
@@ -106,8 +107,12 @@ def build_wheel(args):
         zipfile.ZipFile.write = orig_write
         zipfile.ZipFile.writestr = orig_writestr
 
+    return wheel_name
+
+
+def build_wheel(args):
     with os.fdopen(args.output_fd, "w") as out:
-        print(wheel_name, file=out)
+        print(build_wheel_impl(args, args.wheel_dir), file=out)
     return 0
 
 
@@ -129,13 +134,13 @@ def parse_optimize_arg(val):
     return [int(x) for x in spl]
 
 
-def install_wheel(args):
+def install_wheel_impl(args, wheel):
     from installer import install
     from installer.destinations import SchemeDictionaryDestination
     from installer.sources import WheelFile
     from installer.utils import get_launcher_kind
 
-    with WheelFile.open(args.wheel) as source:
+    with WheelFile.open(wheel) as source:
         dest = SchemeDictionaryDestination(
             install_scheme_dict(args.prefix, source.distribution),
             args.interpreter,
@@ -144,6 +149,18 @@ def install_wheel(args):
             destdir=args.destdir,
         )
         install(source, dest, {})
+
+
+def install_wheel(args):
+    install_wheel_impl(args, args.wheel)
+
+    return 0
+
+
+def install_from_source(args):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        wheel = build_wheel_impl(args, temp_dir)
+        install_wheel_impl(args, os.path.join(temp_dir, wheel))
 
     return 0
 
@@ -244,7 +261,7 @@ def main(argv=sys.argv):
                         help="Path to pyproject.toml file")
 
     parser = subp.add_parser("build-wheel",
-                             help="Build wheel using specified backend")
+                             help="Build wheel from sources")
     group = parser.add_argument_group("required arguments")
     group.add_argument("--output-fd",
                        help="FD to output the wheel name to",
@@ -255,8 +272,14 @@ def main(argv=sys.argv):
                        required=True)
     add_build_args(parser)
 
+    parser = subp.add_parser("install-from-source",
+                             help="Build and install wheel from sources "
+                             "(without preserving the wheel)")
+    add_build_args(parser)
+    add_install_args(parser)
+
     parser = subp.add_parser("install-wheel",
-                             help="Install wheel")
+                             help="Install the specified wheel")
     add_install_args(parser)
     parser.add_argument("wheel",
                         help="Wheel to install")

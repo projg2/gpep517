@@ -232,12 +232,30 @@ def test_build_self(tmp_path, capfd):
     assert f"{wheel_name}\n" == capfd.readouterr().out
 
     with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
-        assert all(x in zipf.namelist() for x in [
-            f"{pkg}.dist-info/METADATA",
-            f"{pkg}.dist-info/entry_points.txt",
-            "gpep517/__init__.py",
-            "gpep517/__main__.py",
-        ])
+        assert all(dict((x, x in zipf.namelist()) for x in
+                        [f"{pkg}.dist-info/METADATA",
+                         f"{pkg}.dist-info/entry_points.txt",
+                         "gpep517/__init__.py",
+                         "gpep517/__main__.py",
+                         ]).values())
+
+
+def test_install_self(tmp_path):
+    pytest.importorskip("flit_core")
+    assert 0 == main(["", "install-from-source",
+                      "--allow-compressed",
+                      "--destdir", str(tmp_path),
+                      "--prefix", "/usr"])
+
+    pkg = f"gpep517-{__version__}"
+    sitedir = tmp_path / (sysconfig.get_path("purelib", vars={"base": "/usr"})
+                          .lstrip(os.path.sep))
+    assert all(dict((x, os.path.exists(x)) for x in
+                    [f"{sitedir}/{pkg}.dist-info/METADATA",
+                     f"{sitedir}/{pkg}.dist-info/entry_points.txt",
+                     f"{sitedir}/gpep517/__init__.py",
+                     f"{sitedir}/gpep517/__main__.py",
+                     ]).values())
 
 
 @contextlib.contextmanager
