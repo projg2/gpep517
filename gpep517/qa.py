@@ -2,6 +2,9 @@ import importlib.util
 import os
 import os.path
 import struct
+import typing
+
+from pathlib import Path
 
 
 class PEP552Header:
@@ -43,32 +46,33 @@ class PEP552Header:
                 struct.unpack_from("<LL", self.header, 8))
 
 
-def qa_verify_pyc(destdir, sitedirs):
+def qa_verify_pyc(destdir: Path, sitedirs: typing.Iterable[Path]):
     missing_pyc = []
     invalid_pyc = []
     mismatched_pyc = []
     stray_pyc = []
 
     for sitedir in sitedirs:
-        top_path = destdir + sitedir
-        if not os.path.isdir(top_path):
+        top_path = destdir / sitedir.relative_to(sitedir.root)
+        if not top_path.is_dir():
             continue
 
-        py_files = set()
-        pyc_files = set()
+        py_files: typing.Set[Path] = set()
+        pyc_files: typing.Set[Path] = set()
 
         for path, dirs, files in os.walk(top_path):
             for fn in files:
                 if fn.endswith(".py"):
-                    py_files.add(os.path.join(path, fn))
+                    py_files.add(Path(path) / fn)
                 elif fn.endswith((".pyc", ".pyo")):
-                    pyc_files.add(os.path.join(path, fn))
+                    pyc_files.add(Path(path) / fn)
 
         for py in py_files:
-            py_stat = os.stat(py)
+            py_stat = py.stat()
 
             for opt in ("", 1, 2):
-                pyc = importlib.util.cache_from_source(py, optimization=opt)
+                pyc = Path(
+                    importlib.util.cache_from_source(py, optimization=opt))
                 # 1. check for missing .pyc files
                 if pyc not in pyc_files:
                     missing_pyc.append((pyc, py))
@@ -76,7 +80,7 @@ def qa_verify_pyc(destdir, sitedirs):
 
                 pyc_files.remove(pyc)
                 # 2. check the header
-                with open(pyc, "rb") as f:
+                with pyc.open("rb") as f:
                     try:
                         header = PEP552Header(f)
                     except ValueError:
@@ -89,7 +93,7 @@ def qa_verify_pyc(destdir, sitedirs):
                     # does not verify the .pyc validity, we do because
                     # per that mode we're actually responsible for ensuring
                     # that the file is valid
-                    with open(py, "rb") as f:
+                    with py.open("rb") as f:
                         py_hash = importlib.util.source_hash(f.read())
                     if py_hash != header.py_hash:
                         mismatched_pyc.append((pyc, py, "hash"))

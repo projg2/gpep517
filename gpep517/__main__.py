@@ -13,20 +13,20 @@ from pathlib import Path
 
 
 ALL_OPT_LEVELS = [0, 1, 2]
-DEFAULT_PREFIX = "/usr"
+DEFAULT_PREFIX = Path("/usr")
 DEFAULT_FALLBACK_BACKEND = "setuptools.build_meta:__legacy__"
 
 logger = logging.getLogger("gpep517")
 
 
-def get_toml(path):
+def get_toml(path: Path):
     if sys.version_info >= (3, 11):
         import tomllib
     else:
         import tomli as tomllib
 
     try:
-        with open(path, "rb") as f:
+        with path.open("rb") as f:
             return tomllib.load(f)
     except FileNotFoundError:
         return {}
@@ -41,7 +41,7 @@ def get_backend(args):
     return 0
 
 
-def build_wheel_impl(args, wheel_dir):
+def build_wheel_impl(args, wheel_dir: Path):
     build_sys = get_toml(args.pyproject_toml).get("build-system", {})
     backend_s = args.backend
     if backend_s is None:
@@ -102,8 +102,8 @@ def build_wheel_impl(args, wheel_dir):
             backend = getattr(backend, name)
 
     logger.info(f"Building wheel via backend {backend_s}")
-    wheel_name = backend.build_wheel(wheel_dir, args.config_json)
-    logger.info(f"The backend produced {Path(wheel_dir) / wheel_name}")
+    wheel_name = backend.build_wheel(str(wheel_dir), args.config_json)
+    logger.info(f"The backend produced {wheel_dir / wheel_name}")
 
     for mod in frozenset(sys.modules).difference(orig_modules):
         del sys.modules[mod]
@@ -123,12 +123,12 @@ def build_wheel(args):
     return 0
 
 
-def install_scheme_dict(prefix, dist_name):
-    ret = sysconfig.get_paths(vars={"base": prefix,
-                                    "platbase": prefix})
+def install_scheme_dict(prefix: Path, dist_name: str):
+    ret = sysconfig.get_paths(vars={"base": str(prefix),
+                                    "platbase": str(prefix)})
     # header path hack copied from installer's __main__.py
     ret["headers"] = os.path.join(
-        sysconfig.get_path("include", vars={"installed_base": prefix}),
+        sysconfig.get_path("include", vars={"installed_base": str(prefix)}),
         dist_name)
     # end of copy-paste
     return ret
@@ -141,7 +141,7 @@ def parse_optimize_arg(val):
     return [int(x) for x in spl]
 
 
-def install_wheel_impl(args, wheel):
+def install_wheel_impl(args, wheel: Path):
     from installer import install
     from installer.destinations import SchemeDictionaryDestination
     from installer.sources import WheelFile
@@ -150,10 +150,10 @@ def install_wheel_impl(args, wheel):
     with WheelFile.open(wheel) as source:
         dest = SchemeDictionaryDestination(
             install_scheme_dict(args.prefix, source.distribution),
-            args.interpreter,
+            str(args.interpreter),
             get_launcher_kind(),
             bytecode_optimization_levels=args.optimize,
-            destdir=args.destdir,
+            destdir=str(args.destdir),
         )
         logger.info(f"Installing {wheel} into {args.destdir}")
         install(source, dest, {})
@@ -168,8 +168,9 @@ def install_wheel(args):
 
 def install_from_source(args):
     with tempfile.TemporaryDirectory() as temp_dir:
-        wheel = build_wheel_impl(args, temp_dir)
-        install_wheel_impl(args, os.path.join(temp_dir, wheel))
+        temp_path = Path(temp_dir)
+        wheel = build_wheel_impl(args, temp_path)
+        install_wheel_impl(args, temp_path / wheel)
 
     return 0
 
@@ -178,12 +179,12 @@ def verify_pyc(args):
     from gpep517.qa import qa_verify_pyc
 
     install_dict = install_scheme_dict(args.prefix, "")
-    sitedirs = frozenset(install_dict[x] for x in ("purelib", "platlib"))
+    sitedirs = frozenset(Path(install_dict[x]) for x in ("purelib", "platlib"))
     result = qa_verify_pyc(args.destdir, sitedirs)
 
     def fpath(p):
-        if p.startswith("/"):
-            return "/" + os.path.relpath(p, args.destdir)
+        if isinstance(p, Path):
+            return str(p.root / p.relative_to(args.destdir))
         return p
 
     for kind, entries in result.items():
@@ -195,10 +196,12 @@ def verify_pyc(args):
 def add_install_path_args(parser):
     group = parser.add_argument_group("install paths")
     group.add_argument("--destdir",
+                       type=Path,
                        help="Staging directory for the install (it will "
                        "be prepended to all paths)",
                        required=True)
     group.add_argument("--prefix",
+                       type=Path,
                        default=DEFAULT_PREFIX,
                        help="Prefix to install to "
                        f"(default: {DEFAULT_PREFIX})")
@@ -221,6 +224,7 @@ def add_build_args(parser):
                        help="Disable backend fallback (i.e. require backend "
                        "declaration in pyproject.toml")
     group.add_argument("--pyproject-toml",
+                       type=Path,
                        default="pyproject.toml",
                        help="Path to pyproject.toml file (used only if "
                        "--backend is not specified)")
@@ -241,6 +245,7 @@ def add_install_args(parser):
 
     group = parser.add_argument_group("install options")
     group.add_argument("--interpreter",
+                       type=Path,
                        default=sys.executable,
                        help="The interpreter to put in script shebangs "
                        f"(default: {sys.executable})")
@@ -272,6 +277,7 @@ def main(argv=sys.argv):
                         help="FD to use for output (default: 1)",
                         type=int)
     parser.add_argument("--pyproject-toml",
+                        type=Path,
                         default="pyproject.toml",
                         help="Path to pyproject.toml file")
 
@@ -283,6 +289,7 @@ def main(argv=sys.argv):
                        required=True,
                        type=int)
     group.add_argument("--wheel-dir",
+                       type=Path,
                        help="Directory to write the wheel into",
                        required=True)
     add_build_args(parser)
@@ -297,6 +304,7 @@ def main(argv=sys.argv):
                              help="Install the specified wheel")
     add_install_args(parser)
     parser.add_argument("wheel",
+                        type=Path,
                         help="Wheel to install")
 
     parser = subp.add_parser("verify-pyc",
