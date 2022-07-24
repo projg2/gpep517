@@ -23,7 +23,10 @@ gpep517 implements the following commands:
 
 3. ``install-wheel`` to install a wheel into the specified directory,
 
-4. ``verify-pyc`` to verify that the ``.pyc`` files in the specified
+4. ``install-from-source`` that combines building a wheel and installing
+   it (without leaving the artifacts),
+
+5. ``verify-pyc`` to verify that the ``.pyc`` files in the specified
    install tree are correct and up-to-date.
 
 
@@ -46,14 +49,34 @@ to extend integration testing (``test-full`` extra).  A tox_ file
 is also provided to ease running tests.
 
 
-Example
-=======
-Example use (without error handling):
+Examples
+========
+The simplest way to install a package from the current directory
+is to use the ``install-from-source`` command, e.g.:
 
 .. code-block:: bash
 
-    mkdir dist
+    gpep517 install-from-source --destdir install --optimize all
+
+gpep517 can also be used as a thin wrapper over the installer_ package,
+to install a prebuilt wheel:
+
+.. code-block:: bash
+
+    gpep517 install-wheel --destdir install --optimize all \
+        gpep517-8-py3-none-any.whl
+
+Alternatively, the wheel can be built and installed separately.
+Notably, this leaves the built wheel in the specified directory
+for reuse:
+
+.. code-block:: bash
+
+    set -e
+    mkdir -p dist
     wheel_name=$(
+        # the output forwarding trick guarantees that the underlying
+        # backend will not output into ${wheel_name}
         gpep517 build-wheel --output-fd 3 --wheel-dir dist \
             3>&1 >&2
     )
