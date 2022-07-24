@@ -2,16 +2,21 @@ import argparse
 import functools
 import importlib
 import json
+import logging
 import os
 import pathlib
 import sys
 import sysconfig
 import tempfile
 
+from pathlib import Path
+
 
 ALL_OPT_LEVELS = [0, 1, 2]
 DEFAULT_PREFIX = "/usr"
 DEFAULT_FALLBACK_BACKEND = "setuptools.build_meta:__legacy__"
+
+logger = logging.getLogger("gpep517")
 
 
 def get_toml(path):
@@ -96,7 +101,9 @@ def build_wheel_impl(args, wheel_dir):
         for name in obj.split("."):
             backend = getattr(backend, name)
 
+    logger.info(f"Building wheel via backend {backend_s}")
     wheel_name = backend.build_wheel(wheel_dir, args.config_json)
+    logger.info(f"The backend produced {Path(wheel_dir) / wheel_name}")
 
     for mod in frozenset(sys.modules).difference(orig_modules):
         del sys.modules[mod]
@@ -148,7 +155,9 @@ def install_wheel_impl(args, wheel):
             bytecode_optimization_levels=args.optimize,
             destdir=args.destdir,
         )
+        logger.info(f"Installing {wheel} into {args.destdir}")
         install(source, dest, {})
+        logger.info("Installation complete")
 
 
 def install_wheel(args):
@@ -246,6 +255,12 @@ def add_install_args(parser):
 
 def main(argv=sys.argv):
     argp = argparse.ArgumentParser(prog=argv[0])
+    argp.add_argument("-q", "--quiet",
+                      action="store_const",
+                      dest="loglevel",
+                      const=logging.WARNING,
+                      default=logging.INFO,
+                      help="Disable verbose progress reporting")
 
     subp = argp.add_subparsers(dest="command",
                                required=True)
@@ -291,6 +306,9 @@ def main(argv=sys.argv):
     add_install_path_args(parser)
 
     args = argp.parse_args(argv[1:])
+    logging.basicConfig(format="{asctime} {name} {levelname} {message}",
+                        style="{",
+                        level=args.loglevel)
 
     func = globals()[args.command.replace("-", "_")]
     return func(args)
