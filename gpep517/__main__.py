@@ -101,6 +101,8 @@ def build_wheel_impl(args, wheel_dir: Path):
         for name in obj.split("."):
             backend = getattr(backend, name)
 
+    wheel_dir.mkdir(parents=True, exist_ok=True)
+
     logger.info(f"Building wheel via backend {backend_s}")
     wheel_name = backend.build_wheel(str(wheel_dir), args.config_json)
     logger.info(f"The backend produced {wheel_dir / wheel_name}")
