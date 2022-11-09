@@ -6,7 +6,7 @@ build-backend = "pdm.pep517.api"
 name = "testpkg"
 description = "A test package"
 authors = [{name = "tester", email = "tester@example.com"}]
-license-expression = "MIT"
+license = {text = "MIT"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version"]
 requires-python = ">=3.7"
