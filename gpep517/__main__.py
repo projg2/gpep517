@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import functools
 import importlib
 import json
@@ -41,6 +42,46 @@ def get_backend(args):
     return 0
 
 
+@contextlib.contextmanager
+def disable_zip_compression():
+    import zipfile
+    orig_open = zipfile.ZipFile.open
+    orig_write = zipfile.ZipFile.write
+    orig_writestr = zipfile.ZipFile.writestr
+
+    @functools.wraps(zipfile.ZipFile.open)
+    def override_open(self, name, mode="r", pwd=None,
+                      *, force_zip64=False):
+        if mode == "w":
+            if not isinstance(name, zipfile.ZipInfo):
+                name = zipfile.ZipInfo(name)
+            name.compress_type = zipfile.ZIP_STORED
+        ret = orig_open(self, name, mode, pwd, force_zip64=force_zip64)
+        return ret
+
+    @functools.wraps(zipfile.ZipFile.write)
+    def override_write(self, filename, arcname=None,
+                       compress_type=None, compresslevel=None):
+        return orig_write(self, filename, arcname, zipfile.ZIP_STORED)
+
+    @functools.wraps(zipfile.ZipFile.writestr)
+    def override_writestr(self, zinfo_or_arcname, data,
+                          compress_type=None, compresslevel=None):
+        return orig_writestr(self, zinfo_or_arcname, data,
+                             zipfile.ZIP_STORED)
+
+    zipfile.ZipFile.open = override_open
+    zipfile.ZipFile.write = override_write
+    zipfile.ZipFile.writestr = override_writestr
+
+    try:
+        yield
+    finally:
+        zipfile.ZipFile.open = orig_open
+        zipfile.ZipFile.write = orig_write
+        zipfile.ZipFile.writestr = orig_writestr
+
+
 def build_wheel_impl(args, wheel_dir: Path):
     build_sys = get_toml(args.pyproject_toml).get("build-system", {})
     backend_s = args.backend
@@ -52,71 +93,38 @@ def build_wheel_impl(args, wheel_dir: Path):
                 "and --no-fallback-backend specified")
     package, _, obj = backend_s.partition(":")
 
-    if not args.allow_compressed:
-        import zipfile
-        orig_open = zipfile.ZipFile.open
-        orig_write = zipfile.ZipFile.write
-        orig_writestr = zipfile.ZipFile.writestr
+    zip_ctx = (contextlib.nullcontext if args.allow_compressed
+               else disable_zip_compression)
+    with zip_ctx():
+        def safe_samefile(path, cwd):
+            try:
+                return cwd.samefile(path)
+            except Exception:
+                return False
 
-        @functools.wraps(zipfile.ZipFile.open)
-        def override_open(self, name, mode="r", pwd=None,
-                          *, force_zip64=False):
-            if mode == "w":
-                if not isinstance(name, zipfile.ZipInfo):
-                    name = zipfile.ZipInfo(name)
-                name.compress_type = zipfile.ZIP_STORED
-            ret = orig_open(self, name, mode, pwd, force_zip64=force_zip64)
-            return ret
+        orig_modules = frozenset(sys.modules)
+        orig_path = list(sys.path)
+        # strip the current directory from sys.path
+        cwd = pathlib.Path.cwd()
+        sys.path = [x for x in sys.path if not safe_samefile(x, cwd)]
+        sys.path[:0] = build_sys.get("backend-path", [])
+        backend = importlib.import_module(package)
 
-        @functools.wraps(zipfile.ZipFile.write)
-        def override_write(self, filename, arcname=None,
-                           compress_type=None, compresslevel=None):
-            return orig_write(self, filename, arcname, zipfile.ZIP_STORED)
+        if obj:
+            for name in obj.split("."):
+                backend = getattr(backend, name)
 
-        @functools.wraps(zipfile.ZipFile.writestr)
-        def override_writestr(self, zinfo_or_arcname, data,
-                              compress_type=None, compresslevel=None):
-            return orig_writestr(self, zinfo_or_arcname, data,
-                                 zipfile.ZIP_STORED)
+        wheel_dir.mkdir(parents=True, exist_ok=True)
 
-        zipfile.ZipFile.open = override_open
-        zipfile.ZipFile.write = override_write
-        zipfile.ZipFile.writestr = override_writestr
+        logger.info(f"Building wheel via backend {backend_s}")
+        wheel_name = backend.build_wheel(str(wheel_dir), args.config_json)
+        logger.info(f"The backend produced {wheel_dir / wheel_name}")
 
-    def safe_samefile(path, cwd):
-        try:
-            return cwd.samefile(path)
-        except Exception:
-            return False
+        for mod in frozenset(sys.modules).difference(orig_modules):
+            del sys.modules[mod]
+        sys.path = orig_path
 
-    orig_modules = frozenset(sys.modules)
-    orig_path = list(sys.path)
-    # strip the current directory from sys.path
-    cwd = pathlib.Path.cwd()
-    sys.path = [x for x in sys.path if not safe_samefile(x, cwd)]
-    sys.path[:0] = build_sys.get("backend-path", [])
-    backend = importlib.import_module(package)
-
-    if obj:
-        for name in obj.split("."):
-            backend = getattr(backend, name)
-
-    wheel_dir.mkdir(parents=True, exist_ok=True)
-
-    logger.info(f"Building wheel via backend {backend_s}")
-    wheel_name = backend.build_wheel(str(wheel_dir), args.config_json)
-    logger.info(f"The backend produced {wheel_dir / wheel_name}")
-
-    for mod in frozenset(sys.modules).difference(orig_modules):
-        del sys.modules[mod]
-    sys.path = orig_path
-
-    if not args.allow_compressed:
-        zipfile.ZipFile.open = orig_open
-        zipfile.ZipFile.write = orig_write
-        zipfile.ZipFile.writestr = orig_writestr
-
-    return wheel_name
+        return wheel_name
 
 
 def build_wheel(args):
