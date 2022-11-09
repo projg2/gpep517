@@ -82,6 +82,19 @@ def disable_zip_compression():
         zipfile.ZipFile.writestr = orig_writestr
 
 
+@contextlib.contextmanager
+def scope_modules():
+    orig_modules = frozenset(sys.modules)
+    orig_path = list(sys.path)
+
+    try:
+        yield
+    finally:
+        for mod in frozenset(sys.modules).difference(orig_modules):
+            del sys.modules[mod]
+        sys.path = orig_path
+
+
 def build_wheel_impl(args, wheel_dir: Path):
     build_sys = get_toml(args.pyproject_toml).get("build-system", {})
     backend_s = args.backend
@@ -95,15 +108,13 @@ def build_wheel_impl(args, wheel_dir: Path):
 
     zip_ctx = (contextlib.nullcontext if args.allow_compressed
                else disable_zip_compression)
-    with zip_ctx():
+    with zip_ctx(), scope_modules():
         def safe_samefile(path, cwd):
             try:
                 return cwd.samefile(path)
             except Exception:
                 return False
 
-        orig_modules = frozenset(sys.modules)
-        orig_path = list(sys.path)
         # strip the current directory from sys.path
         cwd = pathlib.Path.cwd()
         sys.path = [x for x in sys.path if not safe_samefile(x, cwd)]
@@ -119,10 +130,6 @@ def build_wheel_impl(args, wheel_dir: Path):
         logger.info(f"Building wheel via backend {backend_s}")
         wheel_name = backend.build_wheel(str(wheel_dir), args.config_json)
         logger.info(f"The backend produced {wheel_dir / wheel_name}")
-
-        for mod in frozenset(sys.modules).difference(orig_modules):
-            del sys.modules[mod]
-        sys.path = orig_path
 
         return wheel_name
 
