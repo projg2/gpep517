@@ -9,6 +9,7 @@ import pathlib
 import sys
 import sysconfig
 import tempfile
+import typing
 
 from pathlib import Path
 
@@ -83,22 +84,30 @@ def disable_zip_compression():
 
 
 @contextlib.contextmanager
-def patch_sysconfig(sysroot: str):
+def patch_sysconfig(sysroot: typing.Optional[str],
+                    soabi: typing.Optional[str],
+                    ):
     orig_config_vars = sysconfig.get_config_vars
 
     def patched_config_vars():
         cvars = orig_config_vars().copy()
-        for modvar in ("CONFINCLUDEDIR", "CONFINCLUDEPY", "INCLUDEDIR",
-                       "INCLUDEPY", "LIBDIR"):
-            srcvar = modvar
-            if srcvar.startswith("CONF") and srcvar not in cvars:
-                # PyPy does not define CONFINCLUDE*, distutils.sysconfig
-                # works around that by hacking the path around manually.
-                # However, setting CONFINCLUDE* here disables the hack
-                # and gets sane behavior back.
-                srcvar = srcvar[4:]
-            if srcvar in cvars:
-                cvars[modvar] = sysroot + cvars[srcvar]
+        if sysroot is not None:
+            for modvar in ("CONFINCLUDEDIR", "CONFINCLUDEPY", "INCLUDEDIR",
+                           "INCLUDEPY", "LIBDIR"):
+                srcvar = modvar
+                if srcvar.startswith("CONF") and srcvar not in cvars:
+                    # PyPy does not define CONFINCLUDE*, distutils.sysconfig
+                    # works around that by hacking the path around manually.
+                    # However, setting CONFINCLUDE* here disables the hack
+                    # and gets sane behavior back.
+                    srcvar = srcvar[4:]
+                if srcvar in cvars:
+                    cvars[modvar] = sysroot + cvars[srcvar]
+        if soabi is not None:
+            assert cvars["SOABI"] in cvars["EXT_SUFFIX"]
+            cvars["EXT_SUFFIX"] = (cvars["EXT_SUFFIX"]
+                                   .replace(cvars["SOABI"], soabi))
+            cvars["SOABI"] = soabi
         return cvars
 
     sysconfig.get_config_vars = patched_config_vars
@@ -134,7 +143,8 @@ def build_wheel_impl(args, wheel_dir: Path):
 
     zip_ctx = (contextlib.nullcontext if args.allow_compressed
                else disable_zip_compression)
-    sysconfig_ctx = (patch_sysconfig(args.sysroot) if args.sysroot is not None
+    sysconfig_ctx = (patch_sysconfig(args.sysroot, args.soabi)
+                     if (args.sysroot, args.soabi) != (None, None)
                      else contextlib.nullcontext())
     with zip_ctx(), sysconfig_ctx, scope_modules():
         def safe_samefile(path, cwd):
@@ -283,6 +293,9 @@ def add_build_args(parser):
                        help="JSON-encoded dictionary of config_settings "
                             "to pass to the build backend",
                        type=json.loads)
+    group.add_argument("--soabi",
+                       help="Patch SOABI to use the specified value "
+                            "(experimental cross-compilation support)")
     group.add_argument("--sysroot",
                        help="Patch sysconfig paths to use specified sysroot "
                             "(experimental cross-compilation support)")
