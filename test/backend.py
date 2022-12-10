@@ -1,5 +1,10 @@
 import pathlib
+import sys
+import sysconfig
 import zipfile
+
+if sys.version_info < (3, 12):
+    import distutils.sysconfig
 
 
 def build_wheel(wheel_directory,
@@ -92,3 +97,21 @@ class zip_writestr_backend:
                           compress_type=zipfile.ZIP_DEFLATED)
 
         return wheel_name
+
+
+class sysroot_backend:
+    def build_wheel(wheel_directory,
+                    config_settings=None,
+                    metadata_directory=None):
+        assert sysconfig.get_config_var("CONFINCLUDEPY").startswith("/sysroot")
+        assert sysconfig.get_config_var("INCLUDEPY").startswith("/sysroot")
+        # TODO: we actually need to override libdir suffix too
+        assert sysconfig.get_config_var("LIBDIR").startswith("/sysroot")
+
+        if sys.version_info < (3, 12):
+            assert (distutils.sysconfig.get_python_inc(False)
+                    .startswith("/sysroot"))
+            assert (distutils.sysconfig.get_python_inc(True)
+                    .startswith("/sysroot"))
+
+        return "frobnicate-3-py3-none-any.whl"

@@ -386,3 +386,17 @@ def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_mod_cleanup,
     with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
         assert ({zipfile.ZIP_STORED}
                 == {x.compress_type for x in zipf.infolist()})
+
+
+def test_sysroot(tmp_path, capfd, verify_mod_cleanup):
+    with open(tmp_path / "pyproject.toml", "w") as f:
+        f.write(ZIP_BACKEND_TOML.format(backend="sysroot_backend"))
+
+    assert 0 == main(["", "build-wheel",
+                      "--allow-compressed",
+                      "--output-fd", "1",
+                      "--pyproject-toml", str(tmp_path / "pyproject.toml"),
+                      "--sysroot", "/sysroot",
+                      "--wheel-dir", str(tmp_path)])
+    # TODO: verify arch tag once we add support for overriding it
+    assert "frobnicate-3-py3-none-any.whl\n" == capfd.readouterr().out

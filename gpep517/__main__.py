@@ -83,6 +83,32 @@ def disable_zip_compression():
 
 
 @contextlib.contextmanager
+def patch_sysconfig(sysroot: str):
+    orig_config_vars = sysconfig.get_config_vars
+
+    def patched_config_vars():
+        cvars = orig_config_vars().copy()
+        for modvar in ("CONFINCLUDEDIR", "CONFINCLUDEPY", "INCLUDEDIR",
+                       "INCLUDEPY", "LIBDIR"):
+            srcvar = modvar
+            if srcvar.startswith("CONF") and srcvar not in cvars:
+                # PyPy does not define CONFINCLUDE*, distutils.sysconfig
+                # works around that by hacking the path around manually.
+                # However, setting CONFINCLUDE* here disables the hack
+                # and gets sane behavior back.
+                srcvar = srcvar[4:]
+            if srcvar in cvars:
+                cvars[modvar] = sysroot + cvars[srcvar]
+        return cvars
+
+    sysconfig.get_config_vars = patched_config_vars
+    try:
+        yield
+    finally:
+        sysconfig.get_config_vars = orig_config_vars
+
+
+@contextlib.contextmanager
 def scope_modules():
     orig_modules = frozenset(sys.modules)
     orig_path = list(sys.path)
@@ -108,7 +134,9 @@ def build_wheel_impl(args, wheel_dir: Path):
 
     zip_ctx = (contextlib.nullcontext if args.allow_compressed
                else disable_zip_compression)
-    with zip_ctx(), scope_modules():
+    sysconfig_ctx = (patch_sysconfig(args.sysroot) if args.sysroot is not None
+                     else contextlib.nullcontext())
+    with zip_ctx(), sysconfig_ctx, scope_modules():
         def safe_samefile(path, cwd):
             try:
                 return cwd.samefile(path)
@@ -255,6 +283,9 @@ def add_build_args(parser):
                        help="JSON-encoded dictionary of config_settings "
                             "to pass to the build backend",
                        type=json.loads)
+    group.add_argument("--sysroot",
+                       help="Patch sysconfig paths to use specified sysroot "
+                            "(experimental cross-compilation support)")
 
 
 def add_install_args(parser):
