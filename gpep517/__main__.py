@@ -2,6 +2,7 @@ import argparse
 import contextlib
 import functools
 import importlib
+import importlib.util
 import json
 import logging
 import os
@@ -84,21 +85,49 @@ def disable_zip_compression():
 
 @contextlib.contextmanager
 def patch_sysconfig(sysroot: str):
+    stdlib_path = Path(sysconfig.get_path("stdlib"))
+    if not stdlib_path.is_absolute():
+        raise RuntimeError(f"stdlib path {stdlib_path} is not absolute")
+    data_paths = list(
+        (sysroot / stdlib_path.relative_to("/")).glob("_sysconfigdata_*.py"))
+    if len(data_paths) != 1:
+        raise RuntimeError(
+            f"should have found one _sysconfigdata file, found {data_paths}")
+    logger.info(f"Using sysconfig from {data_paths[0]}")
+
+    data_spec = importlib.util.spec_from_file_location(
+        "_sysconfig_data", data_paths[0])
+    data_mod = importlib.util.module_from_spec(data_spec)
+    data_spec.loader.exec_module(data_mod)
+    sysroot_vars = data_mod.build_time_vars
+
     orig_config_vars = sysconfig.get_config_vars
 
     def patched_config_vars():
         cvars = orig_config_vars().copy()
+
+        # path variables: we copy them from sysroot, and prepend sysroot
         for modvar in ("CONFINCLUDEDIR", "CONFINCLUDEPY", "INCLUDEDIR",
                        "INCLUDEPY", "LIBDIR"):
             srcvar = modvar
-            if srcvar.startswith("CONF") and srcvar not in cvars:
+            if srcvar.startswith("CONF") and srcvar not in sysroot_vars:
                 # PyPy does not define CONFINCLUDE*, distutils.sysconfig
                 # works around that by hacking the path around manually.
                 # However, setting CONFINCLUDE* here disables the hack
                 # and gets sane behavior back.
                 srcvar = srcvar[4:]
-            if srcvar in cvars:
-                cvars[modvar] = sysroot + cvars[srcvar]
+            if srcvar in sysroot_vars:
+                sysroot_path = Path(sysroot_vars[srcvar])
+                if not sysroot_path.is_absolute():
+                    raise RuntimeError(
+                        f"{srcvar} path {sysroot_path} is not absolute")
+                cvars[modvar] = str(sysroot / sysroot_path.relative_to("/"))
+
+        # ABI-specific variables: plain copy
+        for modvar in ("SOABI", "EXT_SUFFIX"):
+            if modvar in sysroot_vars:
+                cvars[modvar] = sysroot_vars[modvar]
+
         return cvars
 
     sysconfig.get_config_vars = patched_config_vars
@@ -285,7 +314,8 @@ def add_build_args(parser):
                        type=json.loads)
     group.add_argument("--sysroot",
                        help="Patch sysconfig paths to use specified sysroot "
-                            "(experimental cross-compilation support)")
+                            "(experimental cross-compilation support)",
+                       type=Path)
 
 
 def add_install_args(parser):

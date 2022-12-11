@@ -2,6 +2,7 @@ import contextlib
 import importlib.machinery
 import importlib.util
 import io
+import json
 import os
 import pathlib
 import shutil
@@ -13,6 +14,11 @@ import pytest
 
 from gpep517 import __version__
 from gpep517.__main__ import main, ALL_OPT_LEVELS
+
+try:
+    import distutils.sysconfig as distutils_sysconfig
+except ImportError:
+    distutils_sysconfig = None
 
 
 FLIT_TOML = """
@@ -50,14 +56,31 @@ requires = []
 build-backend = "test.backend:{backend}"
 """
 
+SYSCONFIG_DATA = """
+build_time_vars = {
+    "CONFINCLUDEDIR": "/foo/include",
+    "INCLUDEDIR": "/foo/include",
+    "CONFINCLUDEPY": "/foo/include/python3.11",
+    "INCLUDEPY": "/foo/include/python3.11",
+    "LIBDIR": "/foo/lib",
+    "SOABI": "cpython-311-i386-linux-gnu",
+    "EXT_SUFFIX": ".cpython-311-i386-linux-gnu.so",
+}
+"""
+
 
 @pytest.fixture
 def verify_mod_cleanup():
-    orig_modules = sorted(sys.modules)
+    def get_modules():
+        # _sysconfigdata* gets imported when we query sysconfig
+        return sorted(
+            x for x in sys.modules if not x.startswith("_sysconfigdata"))
+
+    orig_modules = get_modules()
     orig_path = list(sys.path)
     yield
     assert orig_path == sys.path
-    assert orig_modules == sorted(sys.modules)
+    assert orig_modules == get_modules()
 
 
 @pytest.fixture
@@ -74,6 +97,16 @@ def verify_zipfile_cleanup(tmp_path):
             zipf.write(tmp_path / "write.txt", "write.txt")
             assert ({zipfile.ZIP_DEFLATED}
                     == {x.compress_type for x in zipf.infolist()})
+
+
+@pytest.fixture
+def distutils_cache_cleanup():
+    try:
+        yield
+    finally:
+        if distutils_sysconfig is not None and hasattr(distutils_sysconfig,
+                                                       "_config_vars"):
+            distutils_sysconfig._config_vars = None
 
 
 @pytest.mark.parametrize(
@@ -284,7 +317,8 @@ INTEGRATION_TEST_EXTRA_DEPS = {
 
 
 @pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
-def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup):
+def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup,
+                     distutils_cache_cleanup):
     pytest.importorskip(buildsys.split("-", 1)[0])
     for dep in INTEGRATION_TEST_EXTRA_DEPS.get(buildsys, []):
         pytest.importorskip(dep)
@@ -314,7 +348,8 @@ def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup):
 
 
 @pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
-def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup):
+def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup,
+                             distutils_cache_cleanup):
     pytest.importorskip(buildsys.split("-", 1)[0])
     for dep in INTEGRATION_TEST_EXTRA_DEPS.get(buildsys, []):
         pytest.importorskip(dep)
@@ -388,15 +423,43 @@ def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_mod_cleanup,
                 == {x.compress_type for x in zipf.infolist()})
 
 
-def test_sysroot(tmp_path, capfd, verify_mod_cleanup):
+def test_sysroot(tmp_path, capfd, verify_mod_cleanup, distutils_cache_cleanup):
     with open(tmp_path / "pyproject.toml", "w") as f:
         f.write(ZIP_BACKEND_TOML.format(backend="sysroot_backend"))
+
+    stdlib_path = (
+        tmp_path / pathlib.Path(sysconfig.get_path("stdlib")).relative_to("/"))
+    stdlib_path.mkdir(parents=True)
+    (tmp_path / "foo/include/python3.11").mkdir(parents=True)
+    with open(stdlib_path / "_sysconfigdata__linux_i386-linux-gnu.py",
+              "w") as f:
+        f.write(SYSCONFIG_DATA)
 
     assert 0 == main(["", "build-wheel",
                       "--allow-compressed",
                       "--output-fd", "1",
                       "--pyproject-toml", str(tmp_path / "pyproject.toml"),
-                      "--sysroot", "/sysroot",
+                      "--sysroot", str(tmp_path),
                       "--wheel-dir", str(tmp_path)])
-    # TODO: verify arch tag once we add support for overriding it
-    assert "frobnicate-3-py3-none-any.whl\n" == capfd.readouterr().out
+    assert "data.json\n" == capfd.readouterr().out
+
+    with open("data.json", "r") as f:
+        data = json.load(f)
+
+    expected = {
+        "CONFINCLUDEDIR": str(tmp_path / "foo/include"),
+        "INCLUDEDIR": str(tmp_path / "foo/include"),
+        "CONFINCLUDEPY": str(tmp_path / "foo/include/python3.11"),
+        "INCLUDEPY": str(tmp_path / "foo/include/python3.11"),
+        "LIBDIR": str(tmp_path / "foo/lib"),
+        "SOABI": "cpython-311-i386-linux-gnu",
+        "EXT_SUFFIX": ".cpython-311-i386-linux-gnu.so",
+    }
+
+    if distutils_sysconfig is not None:
+        expected["_distutils"] = {
+            "get_python_inc(False)": str(tmp_path / "foo/include/python3.11"),
+            "get_python_inc(True)": str(tmp_path / "foo/include/python3.11"),
+        }
+
+    assert data == expected

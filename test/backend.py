@@ -1,10 +1,7 @@
+import json
 import pathlib
-import sys
 import sysconfig
 import zipfile
-
-if sys.version_info < (3, 12):
-    import distutils.sysconfig
 
 
 def build_wheel(wheel_directory,
@@ -103,15 +100,30 @@ class sysroot_backend:
     def build_wheel(wheel_directory,
                     config_settings=None,
                     metadata_directory=None):
-        assert sysconfig.get_config_var("CONFINCLUDEPY").startswith("/sysroot")
-        assert sysconfig.get_config_var("INCLUDEPY").startswith("/sysroot")
-        # TODO: we actually need to override libdir suffix too
-        assert sysconfig.get_config_var("LIBDIR").startswith("/sysroot")
+        data = {
+            k: sysconfig.get_config_var(k)
+            for k in ("CONFINCLUDEDIR", "CONFINCLUDEPY",
+                      "INCLUDEDIR", "INCLUDEPY",
+                      "LIBDIR",
+                      "EXT_SUFFIX", "SOABI",
+                      )
+        }
 
-        if sys.version_info < (3, 12):
-            assert (distutils.sysconfig.get_python_inc(False)
-                    .startswith("/sysroot"))
-            assert (distutils.sysconfig.get_python_inc(True)
-                    .startswith("/sysroot"))
+        # NB: this can be either the stdlib module in Python < 3.12
+        # or the hacked-in setuptools._distutils
+        try:
+            import distutils.sysconfig
+        except ImportError:
+            pass
+        else:
+            data["_distutils"] = {
+                "get_python_inc(False)":
+                    distutils.sysconfig.get_python_inc(False),
+                "get_python_inc(True)":
+                    distutils.sysconfig.get_python_inc(True),
+            }
 
-        return "frobnicate-3-py3-none-any.whl"
+        with open("data.json", "w") as f:
+            json.dump(data, f)
+
+        return "data.json"
