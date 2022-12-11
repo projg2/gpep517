@@ -109,6 +109,8 @@ class sysroot_backend:
                       )
         }
 
+        data["_platform"] = sysconfig.get_platform()
+
         # NB: this can be either the stdlib module in Python < 3.12
         # or the hacked-in setuptools._distutils
         try:

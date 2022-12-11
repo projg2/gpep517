@@ -65,6 +65,7 @@ build_time_vars = {
     "LIBDIR": "/foo/lib",
     "SOABI": "cpython-311-i386-linux-gnu",
     "EXT_SUFFIX": ".cpython-311-i386-linux-gnu.so",
+    "MULTIARCH": "i386-linux-gnu",
 }
 """
 
@@ -456,6 +457,7 @@ def test_sysroot(tmp_path, capfd, verify_mod_cleanup, distutils_cache_cleanup):
         "LIBDIR": str(tmp_path / "foo/lib"),
         "SOABI": "cpython-311-i386-linux-gnu",
         "EXT_SUFFIX": ".cpython-311-i386-linux-gnu.so",
+        "_platform": "i386-linux-gnu",
     }
 
     if distutils_sysconfig is not None:

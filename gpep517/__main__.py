@@ -108,6 +108,7 @@ def patch_sysconfig(sysroot: str):
     sysroot_vars = data_mod.build_time_vars
 
     orig_config_vars = sysconfig.get_config_vars
+    orig_get_platform = sysconfig.get_platform
 
     def patched_config_vars():
         cvars = orig_config_vars().copy()
@@ -136,11 +137,16 @@ def patch_sysconfig(sysroot: str):
 
         return cvars
 
+    def patched_get_platform():
+        return sysroot_vars["MULTIARCH"]
+
     sysconfig.get_config_vars = patched_config_vars
+    sysconfig.get_platform = patched_get_platform
     try:
         yield
     finally:
         sysconfig.get_config_vars = orig_config_vars
+        sysconfig.get_platform = orig_get_platform
 
 
 @contextlib.contextmanager
