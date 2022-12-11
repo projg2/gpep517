@@ -11,6 +11,50 @@ managers.  It is the tool of choice for a world that does not revolve
 around pip and venvs.
 
 
+Change log
+==========
+v11
+  - test fixes and refactorings
+
+v10
+  - create specified ``--wheel-dir`` automatically
+
+v9
+  - add ``--optimize`` option to byte-compile while installing
+  - include implicit setuptools fallback in ``build-wheel``
+  - add ``install-from-source`` command combining building a wheel
+    and installing it
+  - add progress reporting via logging
+
+v8
+  - improve ``.pyc`` checking to use verification data from the file header
+
+v7
+  - add ``verify-pyc`` command to aid verifying whether all Python modules
+    were compiled to ``.pyc`` files correctly
+
+v6
+  - strip current working directory from ``sys.path`` prior to importing
+    the build backend
+
+v5
+  - fix zipfile hack not to break reading compressed zipfiles
+
+v4
+  - patch zipfile compression out by default to improve performance
+  - fix Python < 3.9 compatibility
+
+v3
+  - add ``--config-json`` to specify backend options
+
+v2
+  - fix not preserving ``backend-path`` for backend invocation
+  - support tomllib in Python 3.11+
+
+v1
+  - initial version with wheel building and installation support
+
+
 Commands
 ========
 gpep517 implements the following commands:
