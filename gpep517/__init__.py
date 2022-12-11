@@ -1,3 +1,3 @@
 """Python package builder and installer for non-pip-centric world"""
 
-__version__ = "11"
+__version__ = "12"

@@ -13,6 +13,9 @@ around pip and venvs.
 
 Change log
 ==========
+v12
+  - add ``--sysroot`` option for experimental cross-compilation support
+
 v11
   - test fixes and refactorings
 
