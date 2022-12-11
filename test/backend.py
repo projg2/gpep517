@@ -125,7 +125,7 @@ class sysroot_backend:
                     distutils.sysconfig.get_python_inc(True),
             }
 
-        with open("data.json", "w") as f:
+        with open(pathlib.Path(wheel_directory) / "data.json", "w") as f:
             json.dump(data, f)
 
         return "data.json"

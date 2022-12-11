@@ -446,7 +446,7 @@ def test_sysroot(tmp_path, capfd, verify_mod_cleanup, distutils_cache_cleanup):
                       "--wheel-dir", str(tmp_path)])
     assert "data.json\n" == capfd.readouterr().out
 
-    with open("data.json", "r") as f:
+    with open(tmp_path / "data.json", "r") as f:
         data = json.load(f)
 
     expected = {
