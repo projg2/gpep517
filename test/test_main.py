@@ -388,7 +388,7 @@ def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_mod_cleanup,
                 == {x.compress_type for x in zipf.infolist()})
 
 
-def test_cross(tmp_path, capfd, verify_mod_cleanup):
+def test_sysroot(tmp_path, capfd, verify_mod_cleanup):
     with open(tmp_path / "pyproject.toml", "w") as f:
         f.write(ZIP_BACKEND_TOML.format(backend="sysroot_backend"))
 
@@ -396,7 +396,6 @@ def test_cross(tmp_path, capfd, verify_mod_cleanup):
                       "--allow-compressed",
                       "--output-fd", "1",
                       "--pyproject-toml", str(tmp_path / "pyproject.toml"),
-                      "--soabi", "cpython-311-i386-linux-gnu",
                       "--sysroot", "/sysroot",
                       "--wheel-dir", str(tmp_path)])
     # TODO: verify arch tag once we add support for overriding it

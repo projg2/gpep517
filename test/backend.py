@@ -108,11 +108,6 @@ class sysroot_backend:
         # TODO: we actually need to override libdir suffix too
         assert sysconfig.get_config_var("LIBDIR").startswith("/sysroot")
 
-        assert (sysconfig.get_config_var("SOABI")
-                == "cpython-311-i386-linux-gnu")
-        assert ("cpython-311-i386-linux-gnu"
-                in sysconfig.get_config_var("EXT_SUFFIX"))
-
         if sys.version_info < (3, 12):
             assert (distutils.sysconfig.get_python_inc(False)
                     .startswith("/sysroot"))
