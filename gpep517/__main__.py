@@ -85,6 +85,12 @@ def disable_zip_compression():
 
 @contextlib.contextmanager
 def patch_sysconfig(sysroot: str):
+    # pypy's _sysconfig.py does not include the necessary information
+    # they are hardcoded in the interpreter, and it just grabs them from there
+    if hasattr(sys, "pypy_version_info"):
+        raise NotImplementedError(
+            "Cross-compilation (--sysroot) is not supported on PyPy")
+
     stdlib_path = Path(sysconfig.get_path("stdlib"))
     if not stdlib_path.is_absolute():
         raise RuntimeError(f"stdlib path {stdlib_path} is not absolute")

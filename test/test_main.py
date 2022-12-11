@@ -423,6 +423,8 @@ def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_mod_cleanup,
                 == {x.compress_type for x in zipf.infolist()})
 
 
+@pytest.mark.skipif(hasattr(sys, "pypy_version_info"),
+                    reason="--sysroot is not supported on PyPy")
 def test_sysroot(tmp_path, capfd, verify_mod_cleanup, distutils_cache_cleanup):
     with open(tmp_path / "pyproject.toml", "w") as f:
         f.write(ZIP_BACKEND_TOML.format(backend="sysroot_backend"))
