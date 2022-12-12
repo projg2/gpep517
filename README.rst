@@ -13,6 +13,10 @@ around pip and venvs.
 
 Change log
 ==========
+v13
+  - restore PyPy support for ``--sysroot`` (Gentoo's PyPy3 package
+    was buggy)
+
 v12
   - add ``--sysroot`` option for experimental cross-compilation support
 
