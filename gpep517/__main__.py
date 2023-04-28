@@ -36,10 +36,13 @@ def get_toml(path: Path):
 
 def get_backend(args):
     with os.fdopen(args.output_fd, "w") as out:
-        print(get_toml(args.pyproject_toml)
-              .get("build-system", {})
-              .get("build-backend", ""),
-              file=out)
+        build_system = get_toml(args.pyproject_toml).get("build-system", {})
+        if build_system:
+            build_backend = build_system.get("build-backend",
+                                             DEFAULT_FALLBACK_BACKEND)
+        else:
+            build_backend = ""
+        print(build_backend, file=out)
     return 0
 
 
