@@ -13,7 +13,7 @@ import zipfile
 import pytest
 
 from gpep517 import __version__
-from gpep517.__main__ import main, ALL_OPT_LEVELS
+from gpep517.__main__ import main, ALL_OPT_LEVELS, DEFAULT_FALLBACK_BACKEND
 
 try:
     import distutils.sysconfig as distutils_sysconfig
@@ -114,7 +114,7 @@ def distutils_cache_cleanup():
     ["toml", "expected"],
     [("FLIT_TOML", "flit_core.buildapi"),
      ("SETUPTOOLS_TOML", "setuptools.build_meta"),
-     ("NO_BUILD_BACKEND_TOML", ""),
+     ("NO_BUILD_BACKEND_TOML", DEFAULT_FALLBACK_BACKEND),
      ("NO_BUILD_SYSTEM_TOML", ""),
      ("TEST_BACKEND_TOML", "backend"),
      (None, ""),
