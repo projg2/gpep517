@@ -10,6 +10,7 @@ import pathlib
 import sys
 import sysconfig
 import tempfile
+import typing
 
 from pathlib import Path
 
@@ -84,12 +85,23 @@ def disable_zip_compression():
 
 
 @contextlib.contextmanager
-def patch_sysconfig(sysroot: str):
+def patch_sysconfig(sysroot: Path,
+                    prefix_from: typing.Optional[Path],
+                    prefix_to: typing.Optional[Path],
+                    ):
     stdlib_path = Path(sysconfig.get_path("stdlib"))
     if not stdlib_path.is_absolute():
         raise RuntimeError(f"stdlib path {stdlib_path} is not absolute")
-    data_paths = list(
-        (sysroot / stdlib_path.relative_to("/")).glob("_sysconfigdata_*.py"))
+    try:
+        unprefixed_stdlib = stdlib_path.relative_to(prefix_from or "/")
+    except ValueError:
+        raise RuntimeError(f"stdlib path {stdlib_path!r} does not start with "
+                           f"specified prefix {prefix_from!r}; was correct "
+                           "path passed to --rewrite-prefix-from")
+    prefixed_stdlib = Path(prefix_to or "/") / unprefixed_stdlib
+    sysroot_stdlib = sysroot / prefixed_stdlib.relative_to("/")
+    logger.info(f"Searching for sysconfig in {sysroot_stdlib}")
+    data_paths = list(sysroot_stdlib.glob("_sysconfigdata_*.py"))
     if len(data_paths) != 1:
         raise RuntimeError(
             f"should have found one _sysconfigdata file, found {data_paths}")
@@ -169,8 +181,22 @@ def build_wheel_impl(args, wheel_dir: Path):
 
     zip_ctx = (contextlib.nullcontext if args.allow_compressed
                else disable_zip_compression)
-    sysconfig_ctx = (patch_sysconfig(args.sysroot) if args.sysroot is not None
-                     else contextlib.nullcontext())
+
+    if args.sysroot is not None:
+        sysconfig_ctx = patch_sysconfig(args.sysroot,
+                                        args.rewrite_prefix_from,
+                                        args.rewrite_prefix_to)
+    elif args.rewrite_prefix_from is not None:
+        raise RuntimeError(
+                "The --rewrite-prefix-from argument must only be specified "
+                "together with the --sysroot option")
+    elif args.rewrite_prefix_to is not None:
+        raise RuntimeError(
+                "The --rewrite-prefix-to argument must only be specified "
+                "together with the --sysroot option")
+    else:
+        sysconfig_ctx = contextlib.nullcontext()
+
     with zip_ctx(), sysconfig_ctx, scope_modules():
         def safe_samefile(path, cwd):
             try:
@@ -287,6 +313,17 @@ def add_install_path_args(parser):
                        f"(default: {DEFAULT_PREFIX})")
 
 
+def PrefixPath(value: str) -> Path:
+    if value == "":
+        return Path("/")
+
+    path = Path(value)
+    if not path.is_absolute():
+        raise argparse.ArgumentTypeError(
+            f"argument is not an absolute path: {value!r}")
+    return path
+
+
 def add_build_args(parser):
     group = parser.add_argument_group("backend selection")
     group.add_argument("--backend",
@@ -322,6 +359,14 @@ def add_build_args(parser):
                        help="Patch sysconfig paths to use specified sysroot "
                             "(experimental cross-compilation support)",
                        type=Path)
+    group.add_argument("--rewrite-prefix-from",
+                       help="Additional prefix applied to the build host "
+                            "(only applicable with --sysroot option)",
+                       type=PrefixPath)
+    group.add_argument("--rewrite-prefix-to",
+                       help="Additional prefix applied to the target host "
+                            "(only applicable with --sysroot option)",
+                       type=PrefixPath)
 
 
 def add_install_args(parser):
