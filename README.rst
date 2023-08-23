@@ -13,6 +13,11 @@ around pip and venvs.
 
 Change log
 ==========
+v14
+  - add support for offset prefix rewriting (``--rewrite-prefix-from``
+    and ``--rewrite-prefix-to``) to support Gentoo cross-prefix builds;
+    thanks to Chewi for the patch
+
 v13
   - restore PyPy support for ``--sysroot`` (Gentoo's PyPy3 package
     was buggy)
