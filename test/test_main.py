@@ -8,7 +8,6 @@ import pathlib
 import shutil
 import sys
 import sysconfig
-import unittest.mock
 import zipfile
 
 import pytest
@@ -425,41 +424,32 @@ def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_mod_cleanup,
                 == {x.compress_type for x in zipf.infolist()})
 
 
-@pytest.mark.parametrize("prefix_from", [None, "", "/", "/old_prefix",
-                                         "/old_prefix/"])
-@pytest.mark.parametrize("prefix_to", [None, "", "/", "/new_prefix",
-                                       "/new_prefix/"])
+@pytest.mark.parametrize("prefix", [None, "/usr", "/new_prefix/usr"])
 def test_sysroot(tmp_path, capfd, verify_mod_cleanup, distutils_cache_cleanup,
-                 prefix_from, prefix_to):
+                 prefix):
     with open(tmp_path / "pyproject.toml", "w") as f:
         f.write(ZIP_BACKEND_TOML.format(backend="sysroot_backend"))
 
+    default_prefix = sysconfig.get_config_var("installed_base")
     base_stdlib_path = (
-        pathlib.Path(sysconfig.get_path("stdlib")).relative_to("/"))
-    prefix_from_stdlib_path = (
-        (prefix_from or "").lstrip("/") / base_stdlib_path)
+        pathlib.Path(sysconfig.get_path("stdlib")).relative_to(default_prefix))
 
-    norm_prefix_to = (prefix_to or "").rstrip("/")
-    tmp_prefix = tmp_path / norm_prefix_to.lstrip("/")
+    norm_prefix_to = (prefix or default_prefix)
+    tmp_prefix = tmp_path / pathlib.Path(norm_prefix_to).relative_to("/")
     stdlib_path = tmp_prefix / base_stdlib_path
     stdlib_path.mkdir(parents=True)
     (tmp_prefix / "foo/include/python3.11").mkdir(parents=True)
     with open(stdlib_path / "_sysconfigdata__linux_i386-linux-gnu.py",
               "w") as f:
-        f.write(SYSCONFIG_DATA.replace("/foo", norm_prefix_to + "/foo"))
+        f.write(SYSCONFIG_DATA.replace("/foo", f"{norm_prefix_to}/foo"))
 
-    with unittest.mock.patch("sysconfig.get_path") as patched_get_path:
-        patched_get_path.return_value = "/" + str(prefix_from_stdlib_path)
-        assert 0 == main(["", "build-wheel",
-                          "--allow-compressed",
-                          "--output-fd", "1",
-                          "--pyproject-toml", str(tmp_path / "pyproject.toml"),
-                          "--sysroot", str(tmp_path),
-                          "--wheel-dir", str(tmp_path)] +
-                         (["--rewrite-prefix-from", prefix_from]
-                          if prefix_from is not None else []) +
-                         (["--rewrite-prefix-to", prefix_to]
-                          if prefix_to is not None else []))
+    assert 0 == main(["", "build-wheel",
+                      "--allow-compressed",
+                      "--output-fd", "1",
+                      "--pyproject-toml", str(tmp_path / "pyproject.toml"),
+                      "--sysroot", str(tmp_path),
+                      "--wheel-dir", str(tmp_path)] +
+                     (["--prefix", prefix] if prefix is not None else []))
     assert "data.json\n" == capfd.readouterr().out
 
     with open(tmp_path / "data.json", "r") as f:
