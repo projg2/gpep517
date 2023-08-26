@@ -13,6 +13,11 @@ around pip and venvs.
 
 Change log
 ==========
+v15
+  - replace prefix rewriting with the ability to specify ``--prefix``
+    for building wheels, making it consistent with prefix overrides
+    used while installing
+
 v14
   - add support for offset prefix rewriting (``--rewrite-prefix-from``
     and ``--rewrite-prefix-to``) to support Gentoo cross-prefix builds;
