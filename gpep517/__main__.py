@@ -236,18 +236,20 @@ def parse_optimize_arg(val):
 
 def install_wheel_impl(args, wheel: Path):
     from installer import install
-    from installer.destinations import SchemeDictionaryDestination
     from installer.sources import WheelFile
     from installer.utils import get_launcher_kind
 
+    from .scheme import Gpep517WheelDestination
+
     with WheelFile.open(wheel) as source:
-        dest = SchemeDictionaryDestination(
+        dest = Gpep517WheelDestination(
             install_scheme_dict(args.prefix or DEFAULT_PREFIX,
                                 source.distribution),
             str(args.interpreter),
             get_launcher_kind(),
             bytecode_optimization_levels=args.optimize,
             destdir=str(args.destdir),
+            script_flags=args.interpreter_flags,
         )
         logger.info(f"Installing {wheel} into {args.destdir}")
         install(source, dest, {})
@@ -355,6 +357,9 @@ def add_install_args(parser):
                        "to compile bytecode for (default: none), pass 'all' "
                        "to enable all known optimization levels (currently: "
                        f"{', '.join(str(x) for x in ALL_OPT_LEVELS)})")
+    group.add_argument('--interpreter-flags',
+                       help='Additional python flags to pass at startup '
+                       '(e.g. `python -s`)')
 
 
 def main(argv=sys.argv):
