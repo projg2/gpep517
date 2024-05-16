@@ -6,7 +6,6 @@ import contextlib
 import functools
 import importlib
 import importlib.util
-import io
 import json
 import logging
 import os
