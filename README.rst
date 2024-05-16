@@ -13,6 +13,9 @@ around pip and venvs.
 
 Change log
 ==========
+v16
+  - fix potential crash when using ``--output-fd 1`` or ``2``
+
 v15
   - replace prefix rewriting with the ability to specify ``--prefix``
     for building wheels, making it consistent with prefix overrides
