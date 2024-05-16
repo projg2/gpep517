@@ -3,6 +3,7 @@ import contextlib
 import functools
 import importlib
 import importlib.util
+import io
 import json
 import logging
 import os
@@ -35,8 +36,19 @@ def get_toml(path: Path):
         return {}
 
 
+def open_output(fd: int) -> io.FileIO:
+    """Safely return file open for outputting into fd"""
+    if fd == 0:
+        raise RuntimeError("--output-fd 0 invalid")
+    elif fd == 1:
+        return contextlib.nullcontext(sys.stdout)
+    elif fd == 2:
+        return contextlib.nullcontext(sys.stderr)
+    return open(fd, "w")
+
+
 def get_backend(args):
-    with os.fdopen(args.output_fd, "w") as out:
+    with open_output(args.output_fd) as out:
         print(get_toml(args.pyproject_toml)
               .get("build-system", {})
               .get("build-backend", ""),
@@ -211,7 +223,7 @@ def build_wheel_impl(args, wheel_dir: Path):
 
 
 def build_wheel(args):
-    with os.fdopen(args.output_fd, "w") as out:
+    with open_output(args.output_fd) as out:
         print(build_wheel_impl(args, args.wheel_dir), file=out)
     return 0
 
