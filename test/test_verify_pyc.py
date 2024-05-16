@@ -1,3 +1,6 @@
+# (c) 2022-2024 Michał Górny
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 import compileall
 import importlib.util
 import os

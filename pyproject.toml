@@ -5,9 +5,11 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "gpep517"
 authors = [{name = "Michał Górny", email = "mgorny@gentoo.org"}]
-license = {file = "LICENSE"}
+license = {text = "GPL-2.0-or-later"}
 readme = "README.rst"
-classifiers = ["License :: OSI Approved :: MIT License"]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+]
 dynamic = ["version", "description"]
 requires-python = ">=3.8"
 dependencies = [
