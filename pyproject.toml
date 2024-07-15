@@ -38,6 +38,7 @@ Home = "https://github.com/mgorny/gpep517/"
 
 [tool.flit.sdist]
 include = [
+    "COPYING",
     "test",
     "tox.ini",
 ]
