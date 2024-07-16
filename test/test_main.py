@@ -208,7 +208,7 @@ def all_files(top_path):
                 # source path was embedded inside it
                 loader = importlib.machinery.SourcelessFileLoader(
                     "testpkg", file_path)
-                data = loader.get_code("testpkg").co_filename
+                data = pathlib.Path(loader.get_code("testpkg").co_filename)
             elif f.endswith(".exe"):
                 data = ""
             else:
@@ -266,7 +266,7 @@ def test_install_wheel(tmp_path, optimize, prefix):
     for opt in opt_levels:
         pyc = importlib.util.cache_from_source(
             init_mod, optimization=opt if opt != 0 else "")
-        expected[pathlib.Path(pyc)] = (nonexec, "/" + init_mod)
+        expected[pathlib.Path(pyc)] = (nonexec, pathlib.Path(f"/{init_mod}"))
 
     assert expected == dict(all_files(tmp_path))
 
