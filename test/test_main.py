@@ -228,7 +228,7 @@ def test_install_wheel(tmp_path, optimize, prefix):
                      (["--optimize", optimize]
                       if optimize is not None else []))
 
-    expected_shebang = "#!/usr/bin/pythontest"
+    expected_shebang = f"#!{str(pathlib.Path('/usr/bin/pythontest'))}"
     prefix = prefix.lstrip("/")
     bindir = sysconfig.get_path("scripts", vars={"base": ""})
     incdir = sysconfig.get_path("include", vars={"installed_base": ""})
