@@ -230,20 +230,24 @@ def test_install_wheel(tmp_path, optimize, prefix):
 
     expected_shebang = "#!/usr/bin/pythontest"
     prefix = prefix.lstrip("/")
+    bindir = sysconfig.get_path("scripts", vars={"base": ""})
     incdir = sysconfig.get_path("include", vars={"installed_base": ""})
     sitedir = sysconfig.get_path("purelib", vars={"base": ""})
 
+    # everything is +x on Windows
+    nonexec = False if os.name != "nt" else True
+
     expected = {
-        pathlib.Path(f"{prefix}/bin/newscript"): (True, expected_shebang),
-        pathlib.Path(f"{prefix}/bin/oldscript"): (True, expected_shebang),
+        pathlib.Path(f"{prefix}{bindir}/newscript"): (True, expected_shebang),
+        pathlib.Path(f"{prefix}{bindir}/oldscript"): (True, expected_shebang),
         pathlib.Path(f"{prefix}{incdir}/test/test.h"):
-        (False, "#define TEST_HEADER 1"),
+        (nonexec, "#define TEST_HEADER 1"),
         pathlib.Path(f"{prefix}{sitedir}/test-1.dist-info"): None,
         pathlib.Path(f"{prefix}{sitedir}/testpkg/__init__.py"):
-        (False, '"""A test package"""'),
+        (nonexec, '"""A test package"""'),
         pathlib.Path(f"{prefix}{sitedir}/testpkg/datafile.txt"):
-        (False, "data"),
-        pathlib.Path(f"{prefix}/share/test/datafile.txt"): (False, "data"),
+        (nonexec, "data"),
+        pathlib.Path(f"{prefix}/share/test/datafile.txt"): (nonexec, "data"),
     }
 
     opt_levels = []
@@ -255,7 +259,7 @@ def test_install_wheel(tmp_path, optimize, prefix):
     for opt in opt_levels:
         pyc = importlib.util.cache_from_source(
             init_mod, optimization=opt if opt != 0 else "")
-        expected[pathlib.Path(pyc)] = (False, "/" + init_mod)
+        expected[pathlib.Path(pyc)] = (nonexec, "/" + init_mod)
 
     assert expected == dict(all_files(tmp_path))
 
