@@ -382,8 +382,11 @@ def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup,
 
     sitedir = destdir / (sysconfig.get_path("purelib", vars={"base": "/usr"})
                          .lstrip(os.path.sep))
+    scriptdir = destdir / (sysconfig.get_path("scripts", vars={"base": "/usr"})
+                           .lstrip(os.path.sep))
+    exe_suffix = ".exe" if os.name == "nt" else ""
     assert all(dict((x, os.path.exists(x)) for x in
-                    [f"{destdir}/usr/bin/newscript",
+                    [f"{scriptdir}/newscript{exe_suffix}",
                      f"{sitedir}/testpkg/__init__.py",
                      f"{sitedir}/testpkg/datafile.txt",
                      ]).values())
