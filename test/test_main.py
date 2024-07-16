@@ -73,6 +73,10 @@ build_time_vars = {
 """
 
 
+IS_WINDOWS = os.name == "nt"
+EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
+
+
 @pytest.fixture
 def verify_mod_cleanup():
     def get_modules():
@@ -229,15 +233,18 @@ def test_install_wheel(tmp_path, optimize, prefix):
                       if optimize is not None else []))
 
     expected_shebang = f"#!{str(pathlib.Path('/usr/bin/pythontest'))}"
+    ep_shebang = "" if IS_WINDOWS else expected_shebang
     prefix = prefix.lstrip("/")
     bindir = sysconfig.get_path("scripts", vars={"base": ""})
     incdir = sysconfig.get_path("include", vars={"installed_base": ""})
     sitedir = sysconfig.get_path("purelib", vars={"base": ""})
 
     # everything is +x on Windows
-    nonexec = False if os.name != "nt" else True
+    nonexec = True if IS_WINDOWS else False
 
     expected = {
+        pathlib.Path(f"{prefix}{bindir}/newscript{EXE_SUFFIX}"):
+        (True, ep_shebang),
         pathlib.Path(f"{prefix}{bindir}/oldscript"): (True, expected_shebang),
         pathlib.Path(f"{prefix}{incdir}/test/test.h"):
         (nonexec, "#define TEST_HEADER 1"),
@@ -248,14 +255,6 @@ def test_install_wheel(tmp_path, optimize, prefix):
         (nonexec, "data"),
         pathlib.Path(f"{prefix}/share/test/datafile.txt"): (nonexec, "data"),
     }
-
-    # Windows uses .exe launchers
-    if os.name == "nt":
-        expected[pathlib.Path(f"{prefix}{bindir}/newscript.exe")
-                 ] = (True, "")
-    else:
-        expected[pathlib.Path(f"{prefix}{bindir}/newscript")
-                 ] = (True, expected_shebang)
 
     opt_levels = []
     if optimize == "all":
@@ -334,7 +333,7 @@ INTEGRATION_TEST_EXTRA_DEPS = {
 
 
 @pytest.mark.xfail(getattr(sys, "pypy_version_info", (0, 0, 0))[:3]
-                   == (7, 3, 16) and os.name == "nt",
+                   == (7, 3, 16) and IS_WINDOWS,
                    reason="PyPy 7.3.16 is broken on Windows")
 @pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
 def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup,
@@ -368,7 +367,7 @@ def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup,
 
 
 @pytest.mark.xfail(getattr(sys, "pypy_version_info", (0, 0, 0))[:3]
-                   == (7, 3, 16) and os.name == "nt",
+                   == (7, 3, 16) and IS_WINDOWS,
                    reason="PyPy 7.3.16 is broken on Windows")
 @pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
 def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup,
@@ -390,9 +389,8 @@ def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup,
                          .lstrip(os.path.sep))
     scriptdir = destdir / (sysconfig.get_path("scripts", vars={"base": "/usr"})
                            .lstrip(os.path.sep))
-    exe_suffix = ".exe" if os.name == "nt" else ""
     assert all(dict((x, os.path.exists(x)) for x in
-                    [f"{scriptdir}/newscript{exe_suffix}",
+                    [f"{scriptdir}/newscript{EXE_SUFFIX}",
                      f"{sitedir}/testpkg/__init__.py",
                      f"{sitedir}/testpkg/datafile.txt",
                      ]).values())
@@ -449,8 +447,7 @@ def test_backend_opening_zipfile(tmp_path, capfd, backend, verify_mod_cleanup,
                 == {x.compress_type for x in zipf.infolist()})
 
 
-@pytest.mark.skipif(os.name == "nt",
-                    reason="--sysroot not supported on Windows")
+@pytest.mark.skipif(IS_WINDOWS, reason="--sysroot not supported on Windows")
 @pytest.mark.parametrize("prefix", [None, "/usr", "/new_prefix/usr"])
 def test_sysroot(tmp_path, capfd, verify_mod_cleanup, distutils_cache_cleanup,
                  prefix):
