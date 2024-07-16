@@ -209,6 +209,8 @@ def all_files(top_path):
                 loader = importlib.machinery.SourcelessFileLoader(
                     "testpkg", file_path)
                 data = loader.get_code("testpkg").co_filename
+            elif f.endswith(".exe"):
+                data = ""
             else:
                 data = file_path.read_text().splitlines()[0]
             yield (str(file_path.relative_to(top_path)),
