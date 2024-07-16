@@ -193,6 +193,8 @@ def build_wheel_impl(args, wheel_dir: Path):
                else disable_zip_compression)
 
     if args.sysroot is not None:
+        if os.name == "nt":
+            raise RuntimeError("--sysroot is not supported on Windows")
         sysconfig_ctx = patch_sysconfig(args.sysroot,
                                         args.prefix)
     else:
