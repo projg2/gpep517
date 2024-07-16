@@ -53,3 +53,6 @@ exclude = [
     "test/__pycache__",
     "test/sub-path/__pycache__",
 ]
+
+[tool.pytest.ini_options]
+xfail_strict = true

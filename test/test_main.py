@@ -333,6 +333,9 @@ INTEGRATION_TEST_EXTRA_DEPS = {
 }
 
 
+@pytest.mark.xfail(getattr(sys, "pypy_version_info", (0, 0, 0))[:3]
+                   == (7, 3, 16) and os.name == "nt",
+                   reason="PyPy 7.3.16 is broken on Windows")
 @pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
 def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup,
                      distutils_cache_cleanup):
@@ -364,6 +367,9 @@ def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup,
                 == {x.compress_type for x in zipf.infolist()})
 
 
+@pytest.mark.xfail(getattr(sys, "pypy_version_info", (0, 0, 0))[:3]
+                   == (7, 3, 16) and os.name == "nt",
+                   reason="PyPy 7.3.16 is broken on Windows")
 @pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
 def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup,
                              distutils_cache_cleanup):
