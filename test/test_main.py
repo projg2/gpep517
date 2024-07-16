@@ -238,7 +238,6 @@ def test_install_wheel(tmp_path, optimize, prefix):
     nonexec = False if os.name != "nt" else True
 
     expected = {
-        pathlib.Path(f"{prefix}{bindir}/newscript"): (True, expected_shebang),
         pathlib.Path(f"{prefix}{bindir}/oldscript"): (True, expected_shebang),
         pathlib.Path(f"{prefix}{incdir}/test/test.h"):
         (nonexec, "#define TEST_HEADER 1"),
@@ -249,6 +248,14 @@ def test_install_wheel(tmp_path, optimize, prefix):
         (nonexec, "data"),
         pathlib.Path(f"{prefix}/share/test/datafile.txt"): (nonexec, "data"),
     }
+
+    # Windows uses .exe launchers
+    if os.name == "nt":
+        expected[pathlib.Path(f"{prefix}{bindir}/newscript.exe")
+                 ] = (True, "")
+    else:
+        expected[pathlib.Path(f"{prefix}{bindir}/newscript")
+                 ] = (True, expected_shebang)
 
     opt_levels = []
     if optimize == "all":
