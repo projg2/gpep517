@@ -199,7 +199,7 @@ def test_build_wheel_config_settings(tmp_path, capfd, settings, expected,
 def all_files(top_path):
     for cur_dir, sub_dirs, sub_files in os.walk(top_path):
         if cur_dir.endswith(".dist-info"):
-            yield (str(pathlib.Path(cur_dir).relative_to(top_path)), None)
+            yield (pathlib.Path(cur_dir).relative_to(top_path), None)
             continue
         for f in sub_files:
             file_path = pathlib.Path(cur_dir) / f
@@ -213,7 +213,7 @@ def all_files(top_path):
                 data = ""
             else:
                 data = file_path.read_text().splitlines()[0]
-            yield (str(file_path.relative_to(top_path)),
+            yield (file_path.relative_to(top_path),
                    (os.access(file_path, os.X_OK), data))
 
 
@@ -234,16 +234,16 @@ def test_install_wheel(tmp_path, optimize, prefix):
     sitedir = sysconfig.get_path("purelib", vars={"base": ""})
 
     expected = {
-        f"{prefix}/bin/newscript": (True, expected_shebang),
-        f"{prefix}/bin/oldscript": (True, expected_shebang),
-        f"{prefix}{incdir}/test/test.h":
+        pathlib.Path(f"{prefix}/bin/newscript"): (True, expected_shebang),
+        pathlib.Path(f"{prefix}/bin/oldscript"): (True, expected_shebang),
+        pathlib.Path(f"{prefix}{incdir}/test/test.h"):
         (False, "#define TEST_HEADER 1"),
-        f"{prefix}{sitedir}/test-1.dist-info": None,
-        f"{prefix}{sitedir}/testpkg/__init__.py":
+        pathlib.Path(f"{prefix}{sitedir}/test-1.dist-info"): None,
+        pathlib.Path(f"{prefix}{sitedir}/testpkg/__init__.py"):
         (False, '"""A test package"""'),
-        f"{prefix}{sitedir}/testpkg/datafile.txt":
+        pathlib.Path(f"{prefix}{sitedir}/testpkg/datafile.txt"):
         (False, "data"),
-        f"{prefix}/share/test/datafile.txt": (False, "data"),
+        pathlib.Path(f"{prefix}/share/test/datafile.txt"): (False, "data"),
     }
 
     opt_levels = []
@@ -255,7 +255,7 @@ def test_install_wheel(tmp_path, optimize, prefix):
     for opt in opt_levels:
         pyc = importlib.util.cache_from_source(
             init_mod, optimization=opt if opt != 0 else "")
-        expected[pyc] = (False, "/" + init_mod)
+        expected[pathlib.Path(pyc)] = (False, "/" + init_mod)
 
     assert expected == dict(all_files(tmp_path))
 
