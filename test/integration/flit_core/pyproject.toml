@@ -5,7 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "testpkg"
 authors = [{name = "tester", email = "tester@example.com"}]
-license = {file = "../../../LICENSE"}
+license = {text = "MIT"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
 requires-python = ">=3.7"
