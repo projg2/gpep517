@@ -5,7 +5,6 @@ import contextlib
 import functools
 import importlib
 import importlib.util
-import logging
 import os
 import sys
 import sysconfig
@@ -13,10 +12,7 @@ import typing
 
 from pathlib import Path
 
-from gpep517.utils import get_toml
-
-
-logger = logging.getLogger("gpep517")
+from gpep517.utils import get_toml, logger
 
 
 @contextlib.contextmanager

@@ -5,23 +5,19 @@ import argparse
 import contextlib
 import json
 import logging
-import os.path
 import sys
-import sysconfig
 import tempfile
 import typing
 
 from pathlib import Path
 
 from gpep517.build import build_wheel_impl
-from gpep517.utils import get_toml
+from gpep517.install import install_wheel_impl
+from gpep517.utils import DEFAULT_PREFIX, get_toml, install_scheme_dict
 
 
 ALL_OPT_LEVELS = [0, 1, 2]
-DEFAULT_PREFIX = Path("/usr")
 DEFAULT_FALLBACK_BACKEND = "setuptools.build_meta:__legacy__"
-
-logger = logging.getLogger("gpep517")
 
 
 def open_output(fd: int) -> typing.ContextManager[typing.TextIO]:
@@ -50,42 +46,11 @@ def build_wheel(args):
     return 0
 
 
-def install_scheme_dict(prefix: Path, dist_name: str):
-    ret = sysconfig.get_paths(vars={"base": str(prefix),
-                                    "platbase": str(prefix)})
-    # header path hack copied from installer's __main__.py
-    ret["headers"] = os.path.join(
-        sysconfig.get_path("include", vars={"installed_base": str(prefix)}),
-        dist_name)
-    # end of copy-paste
-    return ret
-
-
 def parse_optimize_arg(val):
     spl = val.split(",")
     if "all" in spl:
         return ALL_OPT_LEVELS
     return [int(x) for x in spl]
-
-
-def install_wheel_impl(args, wheel: Path):
-    from installer import install
-    from installer.destinations import SchemeDictionaryDestination
-    from installer.sources import WheelFile
-    from installer.utils import get_launcher_kind
-
-    with WheelFile.open(wheel) as source:
-        dest = SchemeDictionaryDestination(
-            install_scheme_dict(args.prefix or DEFAULT_PREFIX,
-                                source.distribution),
-            str(args.interpreter),
-            get_launcher_kind(),
-            bytecode_optimization_levels=args.optimize,
-            destdir=str(args.destdir),
-        )
-        logger.info(f"Installing {wheel} into {args.destdir}")
-        install(source, dest, {})
-        logger.info("Installation complete")
 
 
 def install_wheel(args):
