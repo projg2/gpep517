@@ -9,7 +9,7 @@ import sys
 import tempfile
 import typing
 
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from gpep517.build import build_wheel_impl
 from gpep517.install import install_wheel_impl
@@ -154,6 +154,12 @@ def add_install_args(parser):
                        "to compile bytecode for (default: none), pass 'all' "
                        "to enable all known optimization levels (currently: "
                        f"{', '.join(str(x) for x in ALL_OPT_LEVELS)})")
+    group.add_argument("--symlink-to",
+                       type=PurePath,
+                       help="Install symlinks to another directory rather "
+                       "than files if they match respective paths "
+                       "in the other directory (useful for deduplicating "
+                       "packages across Python implementations)")
 
 
 def main(argv=sys.argv):
