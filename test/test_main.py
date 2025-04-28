@@ -1,4 +1,4 @@
-# (c) 2022-2024 Michał Górny
+# (c) 2022-2025 Michał Górny
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import contextlib
@@ -11,6 +11,7 @@ import pathlib
 import shutil
 import sys
 import sysconfig
+import typing
 import zipfile
 
 import pytest
@@ -223,14 +224,26 @@ def all_files(top_path):
 
 @pytest.mark.parametrize(["optimize"], [(None,), ("0",), ("1,2",), ("all",)])
 @pytest.mark.parametrize(["prefix"], [("/usr",), ("/eprefix/usr",)])
-def test_install_wheel(tmp_path, optimize, prefix):
-    assert 0 == main(["", "install-wheel",
-                      "--destdir", str(tmp_path),
-                      "--interpreter", "/usr/bin/pythontest",
-                      "test/test-pkg/dist/test-1-py3-none-any.whl"] +
-                     (["--prefix", prefix] if prefix != "/usr" else []) +
-                     (["--optimize", optimize]
-                      if optimize is not None else []))
+@pytest.mark.parametrize(["overwrite"], [(False,), (True,)])
+def test_install_wheel(tmp_path,
+                       optimize: typing.Optional[str],
+                       prefix: str,
+                       overwrite: bool):
+    args = (["", "install-wheel",
+             "--destdir", str(tmp_path),
+             "--interpreter", "/usr/bin/pythontest",
+             "test/test-pkg/dist/test-1-py3-none-any.whl"] +
+            (["--prefix", prefix] if prefix != "/usr" else []) +
+            (["--optimize", optimize]
+             if optimize is not None else []))
+    assert 0 == main(args)
+
+    expected_overwrite = (contextlib.nullcontext() if overwrite
+                          else pytest.raises(FileExistsError))
+    if overwrite:
+        args.append("--overwrite")
+    with expected_overwrite:
+        assert 0 == main(args)
 
     expected_shebang = f"#!{str(pathlib.Path('/usr/bin/pythontest'))}"
     ep_shebang = "" if IS_WINDOWS else expected_shebang
