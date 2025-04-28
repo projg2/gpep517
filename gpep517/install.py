@@ -26,6 +26,12 @@ def install_wheel_impl(args, wheel: Path):
             super().__init__(*args, **kwargs)
             self.symlink_to = symlink_to
             purelib_path = PurePath(self.scheme_dict["purelib"])
+            if self.scheme_dict["platlib"] != self.scheme_dict["purelib"]:
+                raise NotImplementedError(
+                    "The implementation currently requires that platlib "
+                    f"({self.scheme_dict['platlib']!r}) is the same "
+                    f"as purelib ({self.scheme_dict['purelib']!r})"
+                )
             self.destdir_purelib = (
                 Path(self.destdir) /
                 purelib_path.relative_to(purelib_path.anchor))
@@ -39,7 +45,7 @@ def install_wheel_impl(args, wheel: Path):
         ) -> RecordEntry:
             ret = super().write_to_fs(scheme, path, stream, is_executable)
 
-            if scheme == "purelib" and self.symlink_to is not None:
+            if scheme in ("platlib", "purelib") and self.symlink_to is not None:
                 path_dir = PurePath(path).parent
                 to_top_dir = len(path_dir.parts) * ("..",)
                 symlink_target = Path(*to_top_dir) / self.symlink_to / path
