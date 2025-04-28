@@ -58,7 +58,8 @@ def install_wheel_impl(args, wheel: Path):
                 full_path.unlink()
                 ret = super().write_to_fs(scheme, path, stream, is_executable)
 
-            if scheme in ("platlib", "purelib") and self.symlink_to is not None:
+            if scheme in ("platlib",
+                          "purelib") and self.symlink_to is not None:
                 path_dir = PurePath(path).parent
                 to_top_dir = len(path_dir.parts) * ("..",)
                 symlink_target = Path(*to_top_dir) / self.symlink_to / path
