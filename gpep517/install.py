@@ -64,7 +64,12 @@ def install_wheel_impl(args, wheel: Path):
                 symlink_target = Path(*to_top_dir) / self.symlink_to / path
                 orig_path = self.destdir_purelib / path
                 full_target = self.destdir_purelib / self.symlink_to / path
-                if filecmp.cmp(orig_path, full_target):
+                try:
+                    if not filecmp.cmp(orig_path, full_target):
+                        raise FileNotFoundError
+                except FileNotFoundError:
+                    pass
+                else:
                     orig_path.unlink()
                     orig_path.symlink_to(symlink_target)
 
