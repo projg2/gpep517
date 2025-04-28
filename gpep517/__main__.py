@@ -154,6 +154,9 @@ def add_install_args(parser):
                        "to compile bytecode for (default: none), pass 'all' "
                        "to enable all known optimization levels (currently: "
                        f"{', '.join(str(x) for x in ALL_OPT_LEVELS)})")
+    group.add_argument("--overwrite",
+                       action="store_true",
+                       help="Permit overwriting files in destdir")
     group.add_argument("--symlink-to",
                        type=PurePath,
                        help="Install symlinks to another directory rather "
