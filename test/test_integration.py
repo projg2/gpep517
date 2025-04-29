@@ -17,6 +17,14 @@ from gpep517.__main__ import main
 from test.common import IS_WINDOWS, EXE_SUFFIX
 
 
+pytestmark = pytest.mark.xfail(
+    IS_WINDOWS and sys.version_info[:2] == (3, 11) and
+    getattr(sys, "pypy_version_info", ())[:3] == (7, 3, 19),
+    reason="PyPy3.11 7.3.19 is broken on Windows "
+    "(https://github.com/pypy/pypy/issues/5250)"
+)
+
+
 @contextlib.contextmanager
 def pushd(path):
     orig_dir = pathlib.Path.cwd()
