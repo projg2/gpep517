@@ -29,16 +29,17 @@ def install_wheel_impl(args, wheel: Path):
             self.overwrite = overwrite
             self.symlink_to = symlink_to
 
-            purelib_path = PurePath(self.scheme_dict["purelib"])
-            if self.scheme_dict["platlib"] != self.scheme_dict["purelib"]:
-                raise NotImplementedError(
-                    "The implementation currently requires that platlib "
-                    f"({self.scheme_dict['platlib']!r}) is the same "
-                    f"as purelib ({self.scheme_dict['purelib']!r})"
-                )
-            self.destdir_purelib = (
-                Path(self.destdir) /
-                purelib_path.relative_to(purelib_path.anchor))
+            if symlink_to is not None:
+                purelib_path = PurePath(self.scheme_dict["purelib"])
+                if self.scheme_dict["platlib"] != self.scheme_dict["purelib"]:
+                    raise NotImplementedError(
+                        "The implementation currently requires that platlib "
+                        f"({self.scheme_dict['platlib']!r}) is the same "
+                        f"as purelib ({self.scheme_dict['purelib']!r})"
+                    )
+                self.destdir_purelib = (
+                    Path(self.destdir) /
+                    purelib_path.relative_to(purelib_path.anchor))
 
         def write_to_fs(
             self,
