@@ -16,9 +16,12 @@ except ImportError:
 @pytest.fixture
 def verify_mod_cleanup():
     def get_modules():
-        # _sysconfigdata* gets imported when we query sysconfig
+        # these modules get imported when we query sysconfig
         return sorted(
-            x for x in sys.modules if not x.startswith("_sysconfigdata"))
+            x for x in sys.modules
+            if not x.startswith("_sysconfigdata") and
+            x not in ("_osx_support",)
+        )
 
     orig_modules = get_modules()
     orig_path = list(sys.path)
