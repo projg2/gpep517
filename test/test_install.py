@@ -124,8 +124,14 @@ def test_install_self(tmp_path):
 
 @pytest.mark.skipif(IS_WINDOWS, reason="--symlink-to not supported on Windows")
 @pytest.mark.parametrize(["optimize"], [(None,), ("all",)])
+@pytest.mark.parametrize(["modification"], [("",),
+                                            ("remove-files",),
+                                            ("remove-dir",),
+                                            ("modify-file",),
+                                            ])
 def test_install_symlink_to(tmp_path,
-                            optimize: typing.Optional[str]
+                            optimize: typing.Optional[str],
+                            modification: str,
                             ) -> None:
     args = (["", "install-wheel",
              "--destdir", str(tmp_path),
@@ -138,6 +144,22 @@ def test_install_symlink_to(tmp_path,
     to_parent = pathlib.PurePath(
         *(len(sitedir.relative_to(sitedir.anchor).parts) * ("..",)))
     symlink_to = to_parent / "../first" / sitedir
+
+    if modification == "remove-files":
+        tmp_path.joinpath("first", sitedir, "foo/a.py").unlink()
+        tmp_path.joinpath("first", sitedir, "foo/data/b.txt").unlink()
+    elif modification == "remove-dir":
+        tmp_path.joinpath("first", sitedir, "foo/data/a.txt").unlink()
+        tmp_path.joinpath("first", sitedir, "foo/data/b.txt").unlink()
+        tmp_path.joinpath("first", sitedir, "foo/data/c.txt").unlink()
+        tmp_path.joinpath("first", sitedir, "foo/data").rmdir()
+    elif modification == "modify-file":
+        tmp_path.joinpath("first", sitedir, "foo/b.py").write_text(
+            '"""b modified"""')
+        tmp_path.joinpath("first", sitedir, "foo/data/c.txt").write_text(
+            "c modified")
+    else:
+        assert not modification
 
     assert 0 == main(args + ["--prefix", "/second",
                              "--symlink-to", str(symlink_to)])
@@ -187,5 +209,38 @@ def test_install_symlink_to(tmp_path,
                     path, optimization=opt if opt != 0 else "")
                 expected[pathlib.Path(pyc)] = (
                     False, False, pathlib.Path("/", path))
+
+    if modification == "remove-files":
+        del expected[pathlib.Path(f"first/{sitedir}/foo/a.py")]
+        del expected[pathlib.Path(f"first/{sitedir}/foo/data/b.txt")]
+        expected.update({
+            pathlib.Path(f"second/{sitedir}/foo/a.py"):
+            (False, False, '"""a module"""'),
+            pathlib.Path(f"second/{sitedir}/foo/data/b.txt"):
+            (False, False, "b file"),
+        })
+    elif modification == "remove-dir":
+        del expected[pathlib.Path(f"first/{sitedir}/foo/data/a.txt")]
+        del expected[pathlib.Path(f"first/{sitedir}/foo/data/b.txt")]
+        del expected[pathlib.Path(f"first/{sitedir}/foo/data/c.txt")]
+        expected.update({
+            pathlib.Path(f"second/{sitedir}/foo/data/a.txt"):
+            (False, False, "a file"),
+            pathlib.Path(f"second/{sitedir}/foo/data/b.txt"):
+            (False, False, "b file"),
+            pathlib.Path(f"second/{sitedir}/foo/data/c.txt"):
+            (False, False, "c file"),
+        })
+    elif modification == "modify-file":
+        expected.update({
+            pathlib.Path(f"first/{sitedir}/foo/b.py"):
+            (False, False, '"""b modified"""'),
+            pathlib.Path(f"first/{sitedir}/foo/data/c.txt"):
+            (False, False, "c modified"),
+            pathlib.Path(f"second/{sitedir}/foo/b.py"):
+            (False, False, '"""b module"""'),
+            pathlib.Path(f"second/{sitedir}/foo/data/c.txt"):
+            (False, False, "c file"),
+        })
 
     assert expected == dict(all_files(tmp_path))
