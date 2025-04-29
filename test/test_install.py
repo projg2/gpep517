@@ -40,9 +40,9 @@ def all_files(top_path):
                     data))
 
 
-@pytest.mark.parametrize(["optimize"], [(None,), ("0",), ("1,2",), ("all",)])
-@pytest.mark.parametrize(["prefix"], [("/usr",), ("/eprefix/usr",)])
-@pytest.mark.parametrize(["overwrite"], [(False,), (True,)])
+@pytest.mark.parametrize("optimize", [None, "0", "1,2", "all"])
+@pytest.mark.parametrize("prefix", ["/usr", "/eprefix/usr"])
+@pytest.mark.parametrize("overwrite", [False, True])
 def test_install_wheel(tmp_path,
                        optimize: typing.Optional[str],
                        prefix: str,
@@ -123,12 +123,12 @@ def test_install_self(tmp_path):
 
 
 @pytest.mark.skipif(IS_WINDOWS, reason="--symlink-to not supported on Windows")
-@pytest.mark.parametrize(["optimize"], [(None,), ("all",)])
-@pytest.mark.parametrize(["modification"], [("",),
-                                            ("remove-files",),
-                                            ("remove-dir",),
-                                            ("modify-file",),
-                                            ])
+@pytest.mark.parametrize("optimize", [None, "all"])
+@pytest.mark.parametrize("modification", ["",
+                                          "remove-files",
+                                          "remove-dir",
+                                          "modify-file",
+                                          ])
 def test_install_symlink_to(tmp_path,
                             optimize: typing.Optional[str],
                             modification: str,
