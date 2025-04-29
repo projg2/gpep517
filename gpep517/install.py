@@ -31,6 +31,9 @@ def install_wheel_impl(args, wheel: Path):
             self.symlink_to = symlink_to
 
             if symlink_to is not None:
+                if os.name == "nt":
+                    raise RuntimeError(
+                        "--symlink-to is not supported on Windows")
                 purelib_path = PurePath(self.scheme_dict["purelib"])
                 if self.scheme_dict["platlib"] != self.scheme_dict["purelib"]:
                     raise NotImplementedError(
