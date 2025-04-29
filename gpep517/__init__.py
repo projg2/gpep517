@@ -3,4 +3,4 @@
 
 """Python package builder and installer for non-pip-centric world"""
 
-__version__ = "17"
+__version__ = "18"

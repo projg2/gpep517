@@ -13,6 +13,12 @@ around pip and venvs.
 
 Change log
 ==========
+v18
+  - add an ``--overwrite`` option to install commands to permit
+    overwriting files in ``--destdir`` instead of throwing an error
+  - add a ``--symlink-to`` option to install commands that can be used
+    to cross-link multiple installs of the same wheel to save space
+
 v17
   - error on ``--sysroot`` on Windows
 
