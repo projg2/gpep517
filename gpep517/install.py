@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import filecmp
+import functools
 import typing
 
 from pathlib import Path, PurePath
@@ -41,6 +42,15 @@ def install_wheel_impl(args, wheel: Path):
                     Path(self.destdir) /
                     purelib_path.relative_to(purelib_path.anchor))
 
+        @functools.cache
+        def check_symlink_to(self) -> None:
+            full_symlink_to = self.destdir_purelib / self.symlink_to
+            if not full_symlink_to.exists():
+                raise FileNotFoundError(
+                    "--symlink-to references a path that does not exist "
+                    f"in --destdir: {full_symlink_to}"
+                )
+
         def write_to_fs(
             self,
             scheme: Scheme,
@@ -68,9 +78,9 @@ def install_wheel_impl(args, wheel: Path):
                 full_target = self.destdir_purelib / self.symlink_to / path
                 try:
                     if not filecmp.cmp(orig_path, full_target):
-                        raise FileNotFoundError
+                        return ret
                 except FileNotFoundError:
-                    pass
+                    self.check_symlink_to()
                 else:
                     orig_path.unlink()
                     orig_path.symlink_to(symlink_target)
