@@ -13,6 +13,9 @@ around pip and venvs.
 
 Change log
 ==========
+v17
+  - error on ``--sysroot`` on Windows
+
 v16
   - fix potential crash when using ``--output-fd 1`` or ``2``
 
