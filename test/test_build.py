@@ -1,23 +1,17 @@
 # (c) 2022-2025 Michał Górny
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-import contextlib
-import importlib.machinery
-import importlib.util
-import io
 import json
-import os
 import pathlib
-import shutil
-import sys
 import sysconfig
-import typing
 import zipfile
 
 import pytest
 
 from gpep517 import __version__
-from gpep517.__main__ import main, ALL_OPT_LEVELS
+from gpep517.__main__ import main
+
+from test.common import IS_WINDOWS
 
 try:
     import distutils.sysconfig as distutils_sysconfig
@@ -72,50 +66,6 @@ build_time_vars = {
     "MULTIARCH": "i386-linux-gnu",
 }
 """
-
-
-IS_WINDOWS = os.name == "nt"
-EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
-
-
-@pytest.fixture
-def verify_mod_cleanup():
-    def get_modules():
-        # _sysconfigdata* gets imported when we query sysconfig
-        return sorted(
-            x for x in sys.modules if not x.startswith("_sysconfigdata"))
-
-    orig_modules = get_modules()
-    orig_path = list(sys.path)
-    yield
-    assert orig_path == sys.path
-    assert orig_modules == get_modules()
-
-
-@pytest.fixture
-def verify_zipfile_cleanup(tmp_path):
-    """Verify that we are reverting zipfile patching correctly"""
-    yield
-    with open(tmp_path / "write.txt", "wb") as f:
-        f.write(b"data")
-    with io.BytesIO() as f:
-        with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
-            with zipf.open("open.txt", "w") as f:
-                f.write(b"data")
-            zipf.writestr("writestr.txt", b"data")
-            zipf.write(tmp_path / "write.txt", "write.txt")
-            assert ({zipfile.ZIP_DEFLATED}
-                    == {x.compress_type for x in zipf.infolist()})
-
-
-@pytest.fixture
-def distutils_cache_cleanup():
-    try:
-        yield
-    finally:
-        if distutils_sysconfig is not None and hasattr(distutils_sysconfig,
-                                                       "_config_vars"):
-            distutils_sysconfig._config_vars = None
 
 
 @pytest.mark.parametrize(
@@ -201,88 +151,6 @@ def test_build_wheel_config_settings(tmp_path, capfd, settings, expected,
     assert f"{expected}\n" == capfd.readouterr().out
 
 
-def all_files(top_path):
-    for cur_dir, sub_dirs, sub_files in os.walk(top_path):
-        if cur_dir.endswith(".dist-info"):
-            yield (pathlib.Path(cur_dir).relative_to(top_path), None)
-            continue
-        for f in sub_files:
-            file_path = pathlib.Path(cur_dir) / f
-            if f.endswith(".pyc"):
-                # for .pyc files, we're interested in whether the correct
-                # source path was embedded inside it
-                loader = importlib.machinery.SourcelessFileLoader(
-                    "testpkg", file_path)
-                data = pathlib.Path(loader.get_code("testpkg").co_filename)
-            elif f.endswith(".exe"):
-                data = ""
-            else:
-                data = file_path.read_text().splitlines()[0]
-            yield (file_path.relative_to(top_path),
-                   (os.access(file_path, os.X_OK), data))
-
-
-@pytest.mark.parametrize(["optimize"], [(None,), ("0",), ("1,2",), ("all",)])
-@pytest.mark.parametrize(["prefix"], [("/usr",), ("/eprefix/usr",)])
-@pytest.mark.parametrize(["overwrite"], [(False,), (True,)])
-def test_install_wheel(tmp_path,
-                       optimize: typing.Optional[str],
-                       prefix: str,
-                       overwrite: bool):
-    args = (["", "install-wheel",
-             "--destdir", str(tmp_path),
-             "--interpreter", "/usr/bin/pythontest",
-             "test/test-pkg/dist/test-1-py3-none-any.whl"] +
-            (["--prefix", prefix] if prefix != "/usr" else []) +
-            (["--optimize", optimize]
-             if optimize is not None else []))
-    assert 0 == main(args)
-
-    expected_overwrite = (contextlib.nullcontext() if overwrite
-                          else pytest.raises(FileExistsError))
-    if overwrite:
-        args.append("--overwrite")
-    with expected_overwrite:
-        assert 0 == main(args)
-
-    expected_shebang = f"#!{str(pathlib.Path('/usr/bin/pythontest'))}"
-    ep_shebang = "" if IS_WINDOWS else expected_shebang
-    prefix = prefix.lstrip("/")
-    bindir = sysconfig.get_path("scripts", vars={"base": ""})
-    incdir = sysconfig.get_path("include", vars={"installed_base": ""})
-    sitedir = sysconfig.get_path("purelib", vars={"base": ""})
-
-    # everything is +x on Windows
-    nonexec = True if IS_WINDOWS else False
-
-    expected = {
-        pathlib.Path(f"{prefix}{bindir}/newscript{EXE_SUFFIX}"):
-        (True, ep_shebang),
-        pathlib.Path(f"{prefix}{bindir}/oldscript"): (True, expected_shebang),
-        pathlib.Path(f"{prefix}{incdir}/test/test.h"):
-        (nonexec, "#define TEST_HEADER 1"),
-        pathlib.Path(f"{prefix}{sitedir}/test-1.dist-info"): None,
-        pathlib.Path(f"{prefix}{sitedir}/testpkg/__init__.py"):
-        (nonexec, '"""A test package"""'),
-        pathlib.Path(f"{prefix}{sitedir}/testpkg/datafile.txt"):
-        (nonexec, "data"),
-        pathlib.Path(f"{prefix}/share/test/datafile.txt"): (nonexec, "data"),
-    }
-
-    opt_levels = []
-    if optimize == "all":
-        opt_levels = ALL_OPT_LEVELS
-    elif optimize is not None:
-        opt_levels = [int(x) for x in optimize.split(",")]
-    init_mod = f"{prefix}{sitedir}/testpkg/__init__.py"
-    for opt in opt_levels:
-        pyc = importlib.util.cache_from_source(
-            init_mod, optimization=opt if opt != 0 else "")
-        expected[pathlib.Path(pyc)] = (nonexec, pathlib.Path(f"/{init_mod}"))
-
-    assert expected == dict(all_files(tmp_path))
-
-
 def test_build_self(tmp_path, capfd):
     pytest.importorskip("flit_core")
     assert 0 == main(["", "build-wheel",
@@ -300,113 +168,6 @@ def test_build_self(tmp_path, capfd):
                          "gpep517/__init__.py",
                          "gpep517/__main__.py",
                          ]).values())
-
-
-def test_install_self(tmp_path):
-    pytest.importorskip("flit_core")
-    assert 0 == main(["", "install-from-source",
-                      "--allow-compressed",
-                      "--destdir", str(tmp_path),
-                      "--prefix", "/usr"])
-
-    pkg = f"gpep517-{__version__}"
-    sitedir = tmp_path / (sysconfig.get_path("purelib", vars={"base": "/usr"})
-                          .lstrip(os.path.sep))
-    assert all(dict((x, os.path.exists(x)) for x in
-                    [f"{sitedir}/{pkg}.dist-info/METADATA",
-                     f"{sitedir}/{pkg}.dist-info/entry_points.txt",
-                     f"{sitedir}/gpep517/__init__.py",
-                     f"{sitedir}/gpep517/__main__.py",
-                     ]).values())
-
-
-@contextlib.contextmanager
-def pushd(path):
-    orig_dir = pathlib.Path.cwd()
-    os.chdir(path)
-    try:
-        yield
-    finally:
-        os.chdir(orig_dir)
-
-
-INTEGRATION_TESTS = [
-    "flit_core",
-    "hatchling",
-    "pdm.pep517",
-    "poetry.core",
-    "setuptools",
-    "setuptools-legacy",
-]
-
-INTEGRATION_TEST_EXTRA_DEPS = {
-    "setuptools": ["wheel"],
-    "setuptools-legacy": ["wheel"],
-}
-
-
-@pytest.mark.xfail(getattr(sys, "pypy_version_info", (0, 0, 0))[:3]
-                   == (7, 3, 16) and IS_WINDOWS,
-                   reason="PyPy 7.3.16 is broken on Windows")
-@pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
-def test_integration(tmp_path, capfd, buildsys, verify_zipfile_cleanup,
-                     distutils_cache_cleanup):
-    pytest.importorskip(buildsys.split("-", 1)[0])
-    for dep in INTEGRATION_TEST_EXTRA_DEPS.get(buildsys, []):
-        pytest.importorskip(dep)
-
-    shutil.copytree(pathlib.Path("test/integration") / buildsys, tmp_path,
-                    dirs_exist_ok=True)
-
-    with pushd(tmp_path):
-        assert 0 == main(["", "build-wheel",
-                          "--output-fd", "1",
-                          "--wheel-dir", "."])
-    pkg = "testpkg-1"
-    wheel_name = f"{pkg}-py3-none-any.whl"
-    assert wheel_name == capfd.readouterr().out.splitlines()[-1]
-
-    with zipfile.ZipFile(tmp_path / wheel_name, "r") as zipf:
-        assert [
-            "testpkg/__init__.py",
-            "testpkg/datafile.txt",
-        ] == sorted(x for x in zipf.namelist()
-                    if not x.startswith(f"{pkg}.dist-info"))
-        assert (b"[console_scripts]\nnewscript=testpkg:entry_point" ==
-                zipf.read(f"{pkg}.dist-info/entry_points.txt")
-                .strip().replace(b" ", b""))
-        assert ({zipfile.ZIP_STORED}
-                == {x.compress_type for x in zipf.infolist()})
-
-
-@pytest.mark.xfail(getattr(sys, "pypy_version_info", (0, 0, 0))[:3]
-                   == (7, 3, 16) and IS_WINDOWS,
-                   reason="PyPy 7.3.16 is broken on Windows")
-@pytest.mark.parametrize("buildsys", INTEGRATION_TESTS)
-def test_integration_install(tmp_path, buildsys, verify_zipfile_cleanup,
-                             distutils_cache_cleanup):
-    pytest.importorskip(buildsys.split("-", 1)[0])
-    for dep in INTEGRATION_TEST_EXTRA_DEPS.get(buildsys, []):
-        pytest.importorskip(dep)
-
-    shutil.copytree(pathlib.Path("test/integration") / buildsys, tmp_path,
-                    dirs_exist_ok=True)
-
-    destdir = tmp_path / "install"
-    with pushd(tmp_path):
-        assert 0 == main(["", "install-from-source",
-                          "--destdir", str(destdir),
-                          "--prefix", "/usr"])
-
-    sitedir = destdir / (sysconfig.get_path("purelib", vars={"base": "/usr"})
-                         .lstrip(os.path.sep))
-    scriptdir = destdir / (sysconfig.get_path("scripts", vars={"base": "/usr"})
-                           .lstrip(os.path.sep))
-    assert all(dict((x, os.path.exists(x)) for x in
-                    [f"{scriptdir}/newscript{EXE_SUFFIX}",
-                     f"{sitedir}/testpkg/__init__.py",
-                     f"{sitedir}/testpkg/datafile.txt",
-                     ]).values())
 
 
 def test_backend_opening_zipfile_compressed(tmp_path, capfd,
