@@ -79,7 +79,7 @@ def install_wheel_impl(args, wheel: Path):
                 to_top_dir = len(path_dir.parts) * ("..",)
                 symlink_target = Path(*to_top_dir) / self.symlink_to / path
                 orig_path = self.destdir_purelib / path
-                full_target = self.destdir_purelib / self.symlink_to / path
+                full_target = orig_path.parent / symlink_target
                 try:
                     if not filecmp.cmp(orig_path, full_target):
                         return ret
