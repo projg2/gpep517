@@ -232,3 +232,135 @@ def test_install_symlink_to(tmp_path,
         })
 
     assert expected == dict(all_files(tmp_path))
+
+
+@pytest.mark.skipif(IS_WINDOWS, reason="--symlink-to not supported on Windows")
+@pytest.mark.parametrize("optimize", [None, "all"])
+@pytest.mark.parametrize("modify", [False, True])
+def test_install_symlink_chain(tmp_path,
+                               optimize: typing.Optional[str],
+                               modify: bool,
+                               ) -> None:
+    args = (["", "install-wheel",
+             "--destdir", str(tmp_path),
+             "test/symlink-pkg/dist/foo-0-py3-none-any.whl"] +
+            (["--optimize", optimize] if optimize is not None else []))
+    assert 0 == main(args + ["--prefix", "/first"])
+
+    sitedir = pathlib.Path(
+        sysconfig.get_path("purelib", vars={"base": "."}))
+    if modify:
+        mod_file = tmp_path.joinpath("first", sitedir, "foo/a.py")
+        mod_file.write_text('"""a modified"""')
+
+    to_parent = pathlib.Path(
+        *(len(sitedir.relative_to(sitedir.anchor).parts) * ("..",)))
+    symlink_to_first = to_parent / "../first" / sitedir
+
+    assert 0 == main(args + ["--prefix", "/second",
+                             "--symlink-to", str(symlink_to_first)])
+
+    if modify:
+        mod_file = tmp_path.joinpath("second", sitedir, "foo/b.py")
+        mod_file.unlink()
+        mod_file.write_text('"""b modified"""')
+
+    symlink_to_second = to_parent / "../second" / sitedir
+    assert 0 == main(args + ["--prefix", "/third",
+                             "--symlink-to", str(symlink_to_second)])
+
+    if modify:
+        mod_file = tmp_path.joinpath("third", sitedir, "foo/data/a.txt")
+        mod_file.unlink()
+        mod_file.write_text('a modified')
+
+    symlink_to_third = to_parent / "../third" / sitedir
+    assert 0 == main(args + ["--prefix", "/fourth",
+                             "--symlink-to", str(symlink_to_third)])
+
+    expected = {}
+    for top_dir in ("first", "second", "third", "fourth"):
+        expect_symlink = top_dir != "first"
+        expected.update(
+            {pathlib.Path(f"{top_dir}/{sitedir}/foo/__init__.py"):
+             (False, expect_symlink, ""),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/a.py"):
+             (False, expect_symlink, '"""a module"""'),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/b.py"):
+             (False, expect_symlink, '"""b module"""'),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/a.txt"):
+             (False, expect_symlink, "a file"),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/b.txt"):
+             (False, expect_symlink, "b file"),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/c.txt"):
+             (False, expect_symlink, "c file"),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/sub/__init__.py"):
+             (False, expect_symlink, ""),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo-0.dist-info"): None
+             })
+
+    expected_links = {}
+    for top_dir in ("second", "third", "fourth"):
+        expected_links.update(
+            {pathlib.Path(f"{top_dir}/{sitedir}/foo/__init__.py"):
+             pathlib.Path("..") / symlink_to_first / "foo/__init__.py",
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/a.py"):
+             pathlib.Path("..") / symlink_to_first / "foo/a.py",
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/b.py"):
+             pathlib.Path("..") / symlink_to_first / "foo/b.py",
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/a.txt"):
+             pathlib.Path("../..") / symlink_to_first / "foo/data/a.txt",
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/b.txt"):
+             pathlib.Path("../..") / symlink_to_first / "foo/data/b.txt",
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/c.txt"):
+             pathlib.Path("../..") / symlink_to_first / "foo/data/c.txt",
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/sub/__init__.py"):
+             pathlib.Path("../..") / symlink_to_first / "foo/sub/__init__.py",
+             })
+
+    if modify:
+        expected.update(
+            {pathlib.Path(f"first/{sitedir}/foo/a.py"):
+             (False, False, '"""a modified"""'),
+             pathlib.Path(f"second/{sitedir}/foo/a.py"):
+             (False, False, '"""a module"""'),
+             pathlib.Path(f"second/{sitedir}/foo/b.py"):
+             (False, False, '"""b modified"""'),
+             pathlib.Path(f"third/{sitedir}/foo/b.py"):
+             (False, False, '"""b module"""'),
+             pathlib.Path(f"third/{sitedir}/foo/data/a.txt"):
+             (False, False, "a modified"),
+             pathlib.Path(f"fourth/{sitedir}/foo/data/a.txt"):
+             (False, False, "a file"),
+             })
+        expected_links.update(
+            {pathlib.Path(f"third/{sitedir}/foo/a.py"):
+             pathlib.Path("..") / symlink_to_second / "foo/a.py",
+             pathlib.Path(f"fourth/{sitedir}/foo/a.py"):
+             pathlib.Path("..") / symlink_to_second / "foo/a.py",
+             pathlib.Path(f"fourth/{sitedir}/foo/b.py"):
+             pathlib.Path("..") / symlink_to_third / "foo/b.py",
+             })
+        del expected_links[pathlib.Path(f"second/{sitedir}/foo/a.py")]
+        del expected_links[pathlib.Path(f"second/{sitedir}/foo/b.py")]
+        del expected_links[pathlib.Path(f"third/{sitedir}/foo/b.py")]
+        del expected_links[pathlib.Path(f"third/{sitedir}/foo/data/a.txt")]
+        del expected_links[pathlib.Path(f"fourth/{sitedir}/foo/data/a.txt")]
+
+    opt_levels = []
+    if optimize == "all":
+        opt_levels = ALL_OPT_LEVELS
+        for path in list(expected):
+            if not path.name.endswith(".py"):
+                continue
+            for opt in opt_levels:
+                pyc = importlib.util.cache_from_source(
+                    path, optimization=opt if opt != 0 else "")
+                expected[pathlib.Path(pyc)] = (
+                    False, False, pathlib.Path("/", path))
+
+    assert expected == dict(all_files(tmp_path))
+
+    assert expected_links == {path: tmp_path.joinpath(path).readlink()
+                              for path, path_data in expected.items()
+                              if path_data is not None and path_data[1]}

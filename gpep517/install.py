@@ -4,6 +4,7 @@
 import filecmp
 import functools
 import os
+import os.path
 import typing
 
 from pathlib import Path, PurePath
@@ -81,6 +82,15 @@ def install_wheel_impl(args, wheel: Path):
                 orig_path = self.destdir_purelib / path
                 full_target = orig_path.parent / symlink_target
                 try:
+                    # if we have a symlink already, we're probably doing
+                    # an implementation chain, so follow it to the beginning
+                    while full_target.is_symlink():
+                        existing_symlink_target = full_target.readlink()
+                        # we deliberately use logical normalization here
+                        symlink_target = Path(
+                            os.path.normpath(symlink_target.parent /
+                                             existing_symlink_target))
+                        full_target = orig_path.parent / symlink_target
                     if not filecmp.cmp(orig_path, full_target):
                         return ret
                 except FileNotFoundError:
