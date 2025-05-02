@@ -164,39 +164,27 @@ def test_install_symlink_to(tmp_path,
     assert 0 == main(args + ["--prefix", "/second",
                              "--symlink-to", str(symlink_to)])
 
-    expected = {
-        pathlib.Path(f"first/{sitedir}/foo/__init__.py"):
-        (False, False, ""),
-        pathlib.Path(f"first/{sitedir}/foo/a.py"):
-        (False, False, '"""a module"""'),
-        pathlib.Path(f"first/{sitedir}/foo/b.py"):
-        (False, False, '"""b module"""'),
-        pathlib.Path(f"first/{sitedir}/foo/data/a.txt"):
-        (False, False, "a file"),
-        pathlib.Path(f"first/{sitedir}/foo/data/b.txt"):
-        (False, False, "b file"),
-        pathlib.Path(f"first/{sitedir}/foo/data/c.txt"):
-        (False, False, "c file"),
-        pathlib.Path(f"first/{sitedir}/foo/sub/__init__.py"):
-        (False, False, ""),
-        pathlib.Path(f"first/{sitedir}/foo-0.dist-info"): None,
+    expected = {}
 
-        pathlib.Path(f"second/{sitedir}/foo/__init__.py"):
-        (False, True, ""),
-        pathlib.Path(f"second/{sitedir}/foo/a.py"):
-        (False, True, '"""a module"""'),
-        pathlib.Path(f"second/{sitedir}/foo/b.py"):
-        (False, True, '"""b module"""'),
-        pathlib.Path(f"second/{sitedir}/foo/data/a.txt"):
-        (False, True, "a file"),
-        pathlib.Path(f"second/{sitedir}/foo/data/b.txt"):
-        (False, True, "b file"),
-        pathlib.Path(f"second/{sitedir}/foo/data/c.txt"):
-        (False, True, "c file"),
-        pathlib.Path(f"second/{sitedir}/foo/sub/__init__.py"):
-        (False, True, ""),
-        pathlib.Path(f"second/{sitedir}/foo-0.dist-info"): None,
-    }
+    for top_dir in ("first", "second"):
+        expect_symlink = top_dir != "first"
+        expected.update(
+            {pathlib.Path(f"{top_dir}/{sitedir}/foo/__init__.py"):
+             (False, expect_symlink, ""),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/a.py"):
+             (False, expect_symlink, '"""a module"""'),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/b.py"):
+             (False, expect_symlink, '"""b module"""'),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/a.txt"):
+             (False, expect_symlink, "a file"),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/b.txt"):
+             (False, expect_symlink, "b file"),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/data/c.txt"):
+             (False, expect_symlink, "c file"),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo/sub/__init__.py"):
+             (False, expect_symlink, ""),
+             pathlib.Path(f"{top_dir}/{sitedir}/foo-0.dist-info"): None,
+             })
 
     opt_levels = []
     if optimize == "all":
