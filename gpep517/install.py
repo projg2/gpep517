@@ -18,7 +18,7 @@ def install_wheel_impl(args, wheel: Path):
     from installer.sources import WheelFile
     from installer.utils import Scheme, get_launcher_kind
 
-    class DeduplicatingDestionation(SchemeDictionaryDestination):
+    class DeduplicatingDestination(SchemeDictionaryDestination):
         def __init__(
             self,
             *args,
@@ -92,7 +92,7 @@ def install_wheel_impl(args, wheel: Path):
             return ret
 
     with WheelFile.open(wheel) as source:
-        dest = DeduplicatingDestionation(
+        dest = DeduplicatingDestination(
             install_scheme_dict(args.prefix or DEFAULT_PREFIX,
                                 source.distribution),
             str(args.interpreter),
