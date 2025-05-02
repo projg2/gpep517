@@ -43,17 +43,22 @@ def all_files(top_path):
 @pytest.mark.parametrize("optimize", [None, "0", "1,2", "all"])
 @pytest.mark.parametrize("prefix", ["/usr", "/eprefix/usr"])
 @pytest.mark.parametrize("overwrite", [False, True])
+@pytest.mark.parametrize("symlink_pyc", [False, True])
 def test_install_wheel(tmp_path,
                        optimize: typing.Optional[str],
                        prefix: str,
-                       overwrite: bool):
+                       overwrite: bool,
+                       symlink_pyc: bool,
+                       ):
     args = (["", "install-wheel",
              "--destdir", str(tmp_path),
              "--interpreter", "/usr/bin/pythontest",
              "test/test-pkg/dist/test-1-py3-none-any.whl"] +
             (["--prefix", prefix] if prefix != "/usr" else []) +
             (["--optimize", optimize]
-             if optimize is not None else []))
+             if optimize is not None else []) +
+            (["--symlink-pyc"] if symlink_pyc else [])
+            )
     assert 0 == main(args)
 
     expected_overwrite = (contextlib.nullcontext() if overwrite
@@ -99,7 +104,10 @@ def test_install_wheel(tmp_path,
         pyc = importlib.util.cache_from_source(
             init_mod, optimization=opt if opt != 0 else "")
         expected[pathlib.Path(pyc)] = (
-            nonexec, False, pathlib.Path(f"/{init_mod}"))
+            nonexec,
+            # our only symlinking opportunity is 1 -> 0
+            symlink_pyc and opt == 1 and 0 in opt_levels,
+            pathlib.Path(f"/{init_mod}"))
 
     assert expected == dict(all_files(tmp_path))
 
@@ -129,14 +137,18 @@ def test_install_self(tmp_path):
                                           "remove-dir",
                                           "modify-file",
                                           ])
+@pytest.mark.parametrize("symlink_pyc", [False, True])
 def test_install_symlink_to(tmp_path,
                             optimize: typing.Optional[str],
                             modification: str,
+                            symlink_pyc: bool,
                             ) -> None:
     args = (["", "install-wheel",
              "--destdir", str(tmp_path),
              "test/symlink-pkg/dist/foo-0-py3-none-any.whl"] +
-            (["--optimize", optimize] if optimize is not None else []))
+            (["--optimize", optimize] if optimize is not None else []) +
+            (["--symlink-pyc"] if symlink_pyc else [])
+            )
     assert 0 == main(args + ["--prefix", "/first"])
 
     sitedir = pathlib.PurePath(
@@ -196,7 +208,10 @@ def test_install_symlink_to(tmp_path,
                 pyc = importlib.util.cache_from_source(
                     path, optimization=opt if opt != 0 else "")
                 expected[pathlib.Path(pyc)] = (
-                    False, False, pathlib.Path("/", path))
+                    False,
+                    symlink_pyc and
+                    (opt == 1 or (opt != 0 and path.name == "__init__.py")),
+                    pathlib.Path("/", path))
 
     if modification == "remove-files":
         del expected[pathlib.Path(f"first/{sitedir}/foo/a.py")]

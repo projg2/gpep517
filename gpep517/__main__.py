@@ -157,6 +157,11 @@ def add_install_args(parser):
     group.add_argument("--overwrite",
                        action="store_true",
                        help="Permit overwriting files in destdir")
+    group.add_argument("--symlink-pyc",
+                       action="store_true",
+                       help="Symlink .pyc files between optimization levels "
+                       "if their contents match")
+
     group.add_argument("--symlink-to",
                        type=PurePath,
                        help="Install symlinks to another directory rather "

@@ -3,6 +3,7 @@
 
 import filecmp
 import functools
+import importlib.util
 import os
 import os.path
 import typing
@@ -24,12 +25,14 @@ def install_wheel_impl(args, wheel: Path):
             self,
             *args,
             overwrite: bool,
+            symlink_pyc: bool,
             symlink_to: typing.Optional[PurePath],
             **kwargs,
         ) -> None:
             super().__init__(*args, **kwargs)
 
             self.overwrite = overwrite
+            self.symlink_pyc = symlink_pyc
             self.symlink_to = symlink_to
 
             if symlink_to is not None:
@@ -101,6 +104,32 @@ def install_wheel_impl(args, wheel: Path):
 
             return ret
 
+        def _compile_bytecode(self,
+                              scheme: Scheme,
+                              record: RecordEntry,
+                              ) -> None:
+            super()._compile_bytecode(scheme, record)
+
+            if not self.symlink_pyc:
+                return
+            if scheme not in ("purelib", "platlib"):
+                return
+            if not record.path.endswith(".py"):
+                return
+
+            relative_path = PurePath(self.scheme_dict[scheme]) / record.path
+            py = Path(self.destdir).joinpath(
+                relative_path.relative_to(relative_path.anchor))
+            pycs = [
+                Path(importlib.util.cache_from_source(
+                    py, optimization=opt if opt >= 1 else ""))
+                for opt in self.bytecode_optimization_levels
+            ]
+            for pyc1, pyc2 in zip(pycs, pycs[1:]):
+                if filecmp.cmp(pyc1, pyc2):
+                    pyc2.unlink()
+                    pyc2.symlink_to(pyc1.name)
+
     with WheelFile.open(wheel) as source:
         dest = DeduplicatingDestination(
             install_scheme_dict(args.prefix or DEFAULT_PREFIX,
@@ -110,6 +139,7 @@ def install_wheel_impl(args, wheel: Path):
             bytecode_optimization_levels=args.optimize,
             destdir=str(args.destdir),
             overwrite=args.overwrite,
+            symlink_pyc=args.symlink_pyc,
             symlink_to=args.symlink_to,
         )
         logger.info(f"Installing {wheel} into {args.destdir}")
