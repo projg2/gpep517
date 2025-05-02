@@ -13,6 +13,12 @@ around pip and venvs.
 
 Change log
 ==========
+v19
+  - detect symlink chains when using ``--symlink-to`` and resolve them,
+    so that the subsequent symlinks point to the actual file
+  - add a ``--symlink-pyc`` option to symlink identical ``.pyc`` across
+    optimization levels
+
 v18
   - add an ``--overwrite`` option to install commands to permit
     overwriting files in ``--destdir`` instead of throwing an error
